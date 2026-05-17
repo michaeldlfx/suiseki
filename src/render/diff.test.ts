@@ -34,7 +34,6 @@ describe("renderDiff", () => {
     const templateInterpolation = "$" + "{name}"
 
     expect(plainRenderedDiff).toContain("diff src/example.ts")
-    expect(plainRenderedDiff).toContain("@@ -1,5 +1,6 @@")
     expect(plainRenderedDiff).toContain('2 -    console.log("Hello " + name)')
     expect(plainRenderedDiff).toContain(
       `2 +    const message = \`Hello ${templateInterpolation}\``,
@@ -42,6 +41,31 @@ describe("renderDiff", () => {
     expect(plainRenderedDiff).toContain("3 +    console.info(message)")
     expect(renderedDiff).toContain(";48;2;14;46;14m")
     expect(renderedDiff).toContain(";48;2;46;14;14m")
+  })
+
+  test("file header includes change summary with deletion and addition counts", async () => {
+    const renderedDiff = await renderDiff(BASIC_DIFF, DEFAULT_CONFIG)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("diff src/example.ts  -1 +2")
+  })
+
+  test("does not show hunk header by default", async () => {
+    const renderedDiff = await renderDiff(BASIC_DIFF, DEFAULT_CONFIG)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).not.toContain("@@")
+  })
+
+  test("shows hunk header when pierre.hunk-header is full", async () => {
+    const configuration = configWith({
+      pierre: { "hunk-header": "full" },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("@@ -1,5 +1,6 @@")
   })
 
   test("ends every rendered line with an ANSI reset", async () => {
@@ -79,19 +103,6 @@ describe("renderDiff", () => {
     const plainRenderedDiff = stripAnsi(renderedDiff)
 
     expect(plainRenderedDiff).not.toContain("diff src/example.ts")
-    expect(plainRenderedDiff).toContain("@@ -1,5 +1,6 @@")
-  })
-
-  test("omits hunk header when pierre.hunk-header is none", async () => {
-    const configuration = configWith({
-      pierre: { "hunk-header": "none" },
-    })
-
-    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
-    const plainRenderedDiff = stripAnsi(renderedDiff)
-
-    expect(plainRenderedDiff).not.toContain("@@ -1,5 +1,6 @@")
-    expect(plainRenderedDiff).toContain("diff src/example.ts")
   })
 
   test("falls back to plaintext tokenization for lines exceeding shiki.max-line-length", async () => {
