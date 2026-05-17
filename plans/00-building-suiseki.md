@@ -412,12 +412,12 @@ In rough order of value:
 - [x] **Git integration docs** in README. Shipped per-command pager settings (`pager.diff`, `pager.show`) instead of `core.pager` so that plain `git log` keeps Git's normal pager output. README also documents `interactive.diffFilter` and the equivalent `~/.gitconfig` snippet. Suiseki reads its own TOML config, not git config, so no `[suiseki]` section appears in the .gitconfig example.
 - [x] **Custom theme loading** — read `~/.suiseki/themes/*.json` (also `$SUISEKI_CONFIG_DIR/themes/` and `$XDG_CONFIG_HOME/suiseki/themes/`) as Shiki themes, name resolved from filename. Each file is parsed with `string.json.parse` then validated against `vCustomTheme` (Arktype) before being registered with the highlighter. Invalid files are skipped with a stderr warning.
 - [x] **Pierre theme pack** — bundle `@pierre/theme`'s Shiki themes as built-ins. All four variants available: `pierre-dark`, `pierre-light`, `pierre-dark-vibrant`, `pierre-light-vibrant`. Registered with the Shiki highlighter at init.
-- [ ] **Merge conflict rendering** — use `parseMergeConflictDiffFromFile` from Pierre. 1208 lines of edge-case handling delta doesn't have. Differentiator.
+- [x] **Merge conflict rendering** — auto-detects `<<<<<<<` markers in input and renders via Pierre's `parseMergeConflictDiffFromFile` (vendored, 1208 lines of edge-case handling). Current side renders as deletions, incoming as additions, base section (diff3) as context. Markers themselves are stripped from output. Works in unified and split views.
 - [x] **`--no-color` / `NO_COLOR` env support** — standard hygiene. `--no-color` flag plus `NO_COLOR` env var (any non-empty value) strip ANSI from rendered output.
 - **Tests** — fixtures for:
   - [x] split view
   - [x] inline word/char diff
-  - [ ] merge conflicts (blocked on merge-conflict rendering)
+  - [x] merge conflicts
   - [ ] large patches (blocked on streaming)
 
 ### README polish

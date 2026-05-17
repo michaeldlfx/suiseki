@@ -2,6 +2,10 @@ import { stripAnsi } from "./ansi"
 import { parseCliOptions } from "./cli-options"
 import { loadConfig, parseEnvironmentBoolean } from "./config"
 import { renderDiff } from "./render/diff"
+import {
+  containsMergeConflictMarkers,
+  renderMergeConflictFile,
+} from "./render/merge-conflict"
 import { runThemesCommand } from "./themes-command"
 
 class CliError extends Error {
@@ -51,7 +55,9 @@ async function main(): Promise<void> {
     return
   }
 
-  const renderedDiff = await renderDiff(patch, configuration)
+  const renderedDiff = containsMergeConflictMarkers(patch)
+    ? await renderMergeConflictFile({ configuration, content: patch })
+    : await renderDiff(patch, configuration)
 
   if (renderedDiff === "") {
     return
