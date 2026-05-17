@@ -44,7 +44,7 @@ Once the v2 features land, the README needs another pass to reflect the broader 
 - [ ] **Subcommand reference** — document `suiseki diff`, `suiseki view`, `suiseki tree`, and the smart default.
 - [ ] **`view` examples** — common file-viewing recipes, including `--with-tree`.
 - [ ] **`tree` examples** — basic usage, git status annotations, `--all` to override `.gitignore`.
-- [ ] **Comparison table additions** — vs `bat`, vs `tree`, vs `eza`, alongside the existing comparison vs `delta`.
+- [ ] **Comparison table additions** — add file-viewing peers (`bat`) and tree peers (`tree`, `eza`) alongside whatever diff peers the v1 comparison table ended up listing.
 - [ ] **Screenshot/cast updates** — show the new subcommands in action.
 
 ## v2 sanity checks

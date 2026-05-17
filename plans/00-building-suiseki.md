@@ -10,8 +10,6 @@ A modern terminal renderer for code, built on Pierre's parsing logic and Shiki's
 - [ ] **v1** — practical terminal diff renderer. Split view, inline word diff, themes, pager integration, binaries on GH Releases. Real release. *(features done; README polish in this file + publishing in `01-publishing-suiseki.md` outstanding)*
 - [ ] **v2** — expand beyond diffs to file viewing (`cat`/`bat` alternative — maybe we suggest aliasing as `sat` (s for `suiseki`, at to mirror `cat`/`bat`)? or provide that out of the box?) and static tree printing. "Pierre's renderer, in your terminal." *(tracked in `02-extending-suiseki.md`)*
 
-**Why this niche is open:** `delta` (Rust + syntect) uses dated Sublime grammars and a fixed theme set. `difftastic` is AST-based and barely themes. Shiki has thousands of themes and best-in-class TextMate grammar support, but no diff-aware CLI uses it. Pierre's parsing and tree logic is Apache 2.0, battle-tested, and renderer-agnostic at the module level, and Pierre already builds around Shiki for syntax and theming. `suiseki` is the friendly terminal surface for those pieces.
-
 ## Progress tracking
 
 Use this file as the durable cross-session source of truth.
@@ -397,7 +395,7 @@ Tree options stay deferred to v2, when `@pierre/trees` becomes a dependency.
 
 ---
 
-# v1 — real delta alternative
+# v1 — practical terminal diff renderer
 
 **Goal:** something a stranger could actually adopt. Properly themed, fully featured for diffs, published with prebuilt binaries.
 
@@ -407,7 +405,7 @@ In rough order of value:
 
 - [x] **Split-view layout** — pair old/new lines using `iterateOverDiff`'s split metadata, columnize to terminal width. Handle line wrapping within columns.
 - [x] **Inline word/char diff** — `diff` npm package's `diffWordsWithSpace` / `diffChars` on changed line pairs, overlay extra ANSI highlight (brighter bg) on changed tokens.
-- [x] **Per-repo `.suiseki.toml`** — walk up from cwd to find. Merged on top of user config. The killer feature delta lacks: a monorepo can specify "split view + word-level for `apps/`, unified for `docs/`".
+- [x] **Per-repo `.suiseki.toml`** — walk up from cwd to find. Merged on top of user config. Lets a monorepo specify "split view + word-level for `apps/`, unified for `docs/`".
 - [x] **CLI flags** — override any config key from the command line (`--view split`, `--theme catppuccin-mocha`, etc.). Uses a small local parser so unknown arguments still pass through to `git diff`.
 - [x] **Default usage on empty invocation** — when `suiseki` runs with no stdin and no git diff arguments, print concise usage/setup guidance instead of silently exiting on an empty working tree.
 - [x] **Pierre terminal-surface mapping** — inventory Pierre's public diff/tree options and expose terminal-relevant, renderer-agnostic diff options through typed config keys and matching CLI flags. Tree options stay v2-only until `@pierre/trees` is added.
@@ -426,17 +424,17 @@ In rough order of value:
 
 Required content for the published README, in order:
 
-- [ ] **Title + tagline** — "suiseki — a terminal renderer for diffs and code"
-- [ ] **The naming homage paragraph** from the [§ The name](#the-name) section above. Copy verbatim.
+- [x] **Title + tagline** — "suiseki — a terminal renderer for diffs and code"
+- [x] **The naming homage paragraph** from the [§ The name](#the-name) section above. Copy verbatim.
 - [ ] **Screenshot or asciinema cast** of a real diff
-- [ ] **30-second pitch** — what it does, who it's for
-- [ ] **Install** — Homebrew, install script, prebuilt binary download
-- [ ] **Quick start** — basic usage, common flags
-- [ ] **Git integration** — the per-command pager (`pager.diff`, `pager.show`) + `interactive.diffFilter` snippet
-- [ ] **Comparison table** vs `delta` / `difftastic` / `diff-so-fancy` — be honest, note what each does better
-- [ ] **Config reference** — every key documented, with example `~/.suiseki/config.toml`
+- [x] **30-second pitch** — what it does, who it's for. (Currently lives in the README Status section; expand if needed once binaries ship.)
+- [ ] **Install** — Homebrew, install script, prebuilt binary download. (Blocked on `01-publishing-suiseki.md`.)
+- [x] **Quick start** — basic usage, common flags
+- [x] **Git integration** — the per-command pager (`pager.diff`, `pager.show`) + `interactive.diffFilter` snippet
+- [ ] **Comparison table** — pick a couple of honest peers (e.g. `difftastic`, `diff-so-fancy`) and note what each does better. Skip claiming to be a replacement for any of them.
+- [x] **Config reference** — every key documented, with example `~/.suiseki/config.toml`
 - [ ] **Themes** — small gallery showing a few popular Shiki themes plus the Pierre theme variants applied to the same diff
-- [ ] **Credits** — `@pierre/diffs` (Apache 2.0, with a link), Shiki (MIT), the Pierre Computer Company
+- [x] **Credits** — `@pierre/diffs` (Apache 2.0, with a link), Shiki (MIT), the Pierre Computer Company
 
 Release engineering for v1 (binaries, GH Releases, Homebrew, install script) is tracked in [`01-publishing-suiseki.md`](./01-publishing-suiseki.md). Start that plan once these v1 features and the README polish are complete.
 
