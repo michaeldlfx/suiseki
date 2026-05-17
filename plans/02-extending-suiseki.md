@@ -4,15 +4,6 @@
 
 **Goal:** the tool stops being just a diff renderer. It becomes the general "view code in the terminal" tool — diffs, files, and static trees. The name `suiseki` (the art of viewing stones) already covers this expanded identity; no rename needed.
 
-## Performance foundation (do first)
-
-Tackle this before adding `view` and `tree`, so the new subcommands inherit a streaming-friendly pipeline rather than being retrofitted later.
-
-- [ ] **Profile, then pick the right win.** v1's renderer handles a 10K-line diff in ~0.5s and a 100K-line diff in ~2.8s on a real laptop (compiled binary path, no pager). Before changing architecture, capture a profile of the 100K-line case and confirm the bottleneck — Pierre's `parsePatchFiles` is whole-buffer by design, so the win is unlikely to come from "use `shiki-stream`" alone. Likely candidates: output streaming (write rendered files as we finish them instead of buffering), batched `codeToTokensBase` calls, or skipping syntax highlighting above a per-file line threshold.
-- [ ] **Output streaming.** Render each file/hunk and write to stdout as soon as it's ready, instead of building one big string and writing at the end. Disables `less --quit-if-one-screen` for streamed paths since total length isn't known up front; keep the buffered path when pager TTY + small input.
-- [ ] **Large-patch test fixture.** Generate a multi-thousand-line synthetic patch and assert (a) output completes, (b) memory stays within a sanity bound, (c) the first rendered file appears before parsing finishes (proves streaming).
-- [ ] **Document the perf characteristics in the README** once measured: include the size/time numbers users can expect.
-
 ## Features
 
 - [ ] **Subcommand router in `src/cli.ts`** — replace v1's flat arg parsing with subcommand dispatch:

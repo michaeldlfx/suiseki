@@ -417,7 +417,6 @@ In rough order of value:
   - [x] split view
   - [x] inline word/char diff
   - [x] merge conflicts
-  - [ ] large patches (deferred to performance work in `02-extending-suiseki.md`)
 
 ### README polish
 
