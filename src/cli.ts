@@ -50,8 +50,12 @@ async function writeWithPager(output: string): Promise<void> {
     stderr: "inherit",
   })
 
-  pager.stdin.write(output)
-  pager.stdin.end()
+  try {
+    pager.stdin.write(output)
+    pager.stdin.end()
+  } catch {
+    // Pager exited early (e.g. user pressed q). Drop the rest silently.
+  }
 
   await pager.exited
 }
