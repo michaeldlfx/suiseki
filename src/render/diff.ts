@@ -89,7 +89,9 @@ export async function renderDiff(
           }
 
           if (line.collapsedBefore > 0) {
-            fileLines.push(emitUnmodifiedLineCount(line.collapsedBefore))
+            fileLines.push(
+              emitUnmodifiedLineCount(line.collapsedBefore, getTerminalWidth()),
+            )
           }
 
           const unifiedLine = resolveUnifiedDiffLine(file, line)
@@ -119,7 +121,9 @@ export async function renderDiff(
           }
 
           if (line.collapsedAfter > 0) {
-            fileLines.push(emitUnmodifiedLineCount(line.collapsedAfter))
+            fileLines.push(
+              emitUnmodifiedLineCount(line.collapsedAfter, getTerminalWidth()),
+            )
           }
 
           return undefined
@@ -132,6 +136,7 @@ export async function renderDiff(
             file,
             additionCount,
             deletionCount,
+            terminalWidth: getTerminalWidth(),
           }),
         )
       }
@@ -304,21 +309,35 @@ function renderPatchMetadata(patchMetadata: string | undefined): string[] {
     )
 }
 
+const SEPARATOR_BACKGROUND_COLOR = "#1c2128"
+
 type EmitFileHeaderParams = {
   file: FileDiffMetadata
   additionCount: number
   deletionCount: number
+  terminalWidth: number
 }
 
 function emitFileHeader({
   file,
   additionCount,
   deletionCount,
+  terminalWidth,
 }: EmitFileHeaderParams): string {
+  const fileNameText = ` ${formatFileName(file)}`
+  const summaryText = `-${deletionCount} +${additionCount} `
+  const paddingLength = Math.max(
+    terminalWidth - fileNameText.length - summaryText.length,
+    2,
+  )
+
   const fileName = emitStyledText({
-    text: `diff ${formatFileName(file)}`,
+    text: fileNameText,
     foregroundColor: "#79b8ff",
     bold: true,
+  })
+  const padding = emitStyledText({
+    text: " ".repeat(paddingLength),
   })
   const deletionSummary = emitStyledText({
     text: `-${deletionCount}`,
@@ -329,7 +348,7 @@ function emitFileHeader({
     foregroundColor: "#3fb950",
   })
 
-  return `${fileName}  ${deletionSummary} ${additionSummary}`
+  return `${fileName}${padding}${deletionSummary} ${additionSummary}`
 }
 
 function emitHunkHeader(hunk: Hunk): string {
@@ -339,15 +358,20 @@ function emitHunkHeader(hunk: Hunk): string {
   })
 }
 
-function emitUnmodifiedLineCount(unmodifiedLineCount: number): string {
+function emitUnmodifiedLineCount(
+  unmodifiedLineCount: number,
+  terminalWidth: number,
+): string {
   const label =
     unmodifiedLineCount === 1
-      ? "1 unmodified line"
-      : `${unmodifiedLineCount} unmodified lines`
+      ? "  1 unmodified line"
+      : `  ${unmodifiedLineCount} unmodified lines`
+  const paddingLength = Math.max(terminalWidth - label.length, 0)
 
   return emitStyledText({
-    text: label,
+    text: `${label}${" ".repeat(paddingLength)}`,
     foregroundColor: "#8b949e",
+    backgroundColor: SEPARATOR_BACKGROUND_COLOR,
   })
 }
 
