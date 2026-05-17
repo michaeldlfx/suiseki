@@ -335,10 +335,9 @@ index 1111111..2222222 100644
     expect(stripAnsi(renderedDiff)).toEqual(
       stripAnsi(renderedDiffWithoutInlineHighlights),
     )
-    expect(
-      countBackgroundEscapes(renderedDiff) >
-        countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
-    ).toEqual(true)
+    expect(countBackgroundEscapes(renderedDiff)).toBeGreaterThan(
+      countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
+    )
   })
 
   test("renders inline word diff highlights in split view", async () => {
@@ -354,10 +353,9 @@ index 1111111..2222222 100644
     expect(stripAnsi(renderedDiff)).toEqual(
       stripAnsi(renderedDiffWithoutInlineHighlights),
     )
-    expect(
-      countBackgroundEscapes(renderedDiff) >
-        countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
-    ).toEqual(true)
+    expect(countBackgroundEscapes(renderedDiff)).toBeGreaterThan(
+      countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
+    )
   })
 
   test("renders char diff highlights differently from word diff highlights", async () => {
