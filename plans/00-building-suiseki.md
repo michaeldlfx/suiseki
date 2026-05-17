@@ -149,6 +149,16 @@ suiseki/                  # local dev dir; GitHub repo is <handle>/suiseki-cli
 - [x] Add colocated Bun tests for the basic unified diff renderer.
 - [x] Build `bin/suiseki`, run it against a real diff, and keep the compiled binary size under the sanity-check threshold.
 
+### v0 polish — align with Pierre's diffs.com rendering
+
+Remaining rendering gaps to close before v0 feels right. These should be addressed in order:
+
+- [ ] **Blank line between files.** Add a visual separator (empty line) between the end of one file's diff and the next file's header.
+- [ ] **File header color.** Currently blue — investigate what color Pierre uses and match it. The filename should feel neutral/prominent, not colored like a diff line.
+- [ ] **File status icon in header.** Pierre shows an icon indicating file status: edited, new, deleted, renamed, moved. Use a simple Unicode character or text marker (e.g., `~` edited, `+` new, `-` deleted, `→` renamed). Check Pierre's icon set in `@pierre/diffs` or `@pierre/theme`.
+- [ ] **Path vs filename display.** Currently shows full path. Pierre shows just the filename. Options to explore: filename bold on first line, dimmed path on second line; or `path/to/ > filename.ext` with dim path. Decide on a format that gives context without noise.
+- [ ] **Pager support.** Spawn `less -R` automatically when stdout is a TTY. `--no-pager` flag or `SUISEKI_NO_PAGER=1` to disable. Without this, large diffs scroll past. Currently workaround: `| less -R`.
+
 ### 1. Scaffold
 
 ```bash
