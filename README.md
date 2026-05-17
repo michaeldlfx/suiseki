@@ -10,91 +10,101 @@ The name is a homage. *Pierre → stone → 水石*. The tool exists to do, for 
 
 ## Status
 
-`suiseki` is in early development. The current repository is a Bun/TypeScript scaffold with a local binary build path. The planned product is a read-only Unix-style CLI that renders diffs first, then source files and static project trees.
+`suiseki` is in v0: a working unified-view diff renderer with Shiki syntax highlighting, theme-derived diff backgrounds, configurable file/hunk headers, line numbers, and pager support. It works both as a piped Unix filter and as a Git pager.
 
-The project is intended as a friendly terminal surface for Pierre's renderer-agnostic packages and Shiki's syntax/theme ecosystem: `@pierre/diffs` first, `@pierre/trees` next, and Shiki throughout. It is a homage and companion, not a fork or replacement.
+The project is a friendly terminal surface for Pierre's renderer-agnostic packages and Shiki's syntax/theme ecosystem: `@pierre/diffs` first, `@pierre/trees` next, and Shiki throughout. It is a homage and companion, not a fork or replacement.
 
 The implementation plan lives in `plans/00-building-suiseki.md`.
 
-## Goals
-
-- Render unified diffs with syntax highlighting and diff-aware backgrounds.
-- Use Shiki's TextMate grammar and theme ecosystem as the source of truth for code colors.
-- Bring Pierre's diff and tree model layers to the terminal where they can be cleanly tree-shaken.
-- Stay read-only: read input, write ANSI to stdout, exit.
-- Ship as a single `suiseki` binary via `bun build --compile`.
-
-## Planned Usage
+## Usage
 
 ```bash
+# pipe a diff
 git diff | suiseki
+
+# pass git diff arguments directly
 suiseki HEAD~1 HEAD
-suiseki view src/cli.ts
-suiseki tree .
+suiseki --staged
+suiseki HEAD~3..HEAD -- src/
+
+# disable the pager
+suiseki --no-pager HEAD~1
+SUISEKI_NO_PAGER=1 git diff | suiseki
 ```
 
-The first implementation target is diff rendering. `suiseki` should work both as an explicit Unix filter and as the default Git pager, similar to `delta`:
+### As a Git pager
 
 ```bash
 git config --global core.pager 'suiseki'
 git config --global interactive.diffFilter 'suiseki --color-only'
 ```
 
-With that configured, normal Git commands such as `git diff` and `git show` should render through `suiseki` without manually piping output.
+With that configured, `git diff`, `git show`, `git log -p`, and other diff-producing Git commands render through `suiseki` automatically.
 
-The `view` and `tree` commands are planned for v2.
+## Configuration
+
+`suiseki` reads a TOML config file from (in order of precedence):
+
+1. `$SUISEKI_CONFIG_DIR/config.toml`
+2. `$XDG_CONFIG_HOME/suiseki/config.toml` (defaults to `~/.config/suiseki/config.toml`)
+3. `~/.suiseki/config.toml`
+
+All settings can also be overridden via environment variables.
+
+```toml
+[pierre]
+view = "unified"             # SUISEKI_PIERRE_VIEW
+line-numbers = true          # SUISEKI_PIERRE_LINE_NUMBERS
+change-indicator = "sign"    # SUISEKI_PIERRE_CHANGE_INDICATOR (sign | bar | background)
+diff-background = true       # SUISEKI_PIERRE_DIFF_BACKGROUND
+file-header = true           # SUISEKI_PIERRE_FILE_HEADER
+hunk-header = "none"         # SUISEKI_PIERRE_HUNK_HEADER (full | none)
+
+[shiki]
+theme = "github-dark"        # SUISEKI_SHIKI_THEME (any bundled Shiki theme)
+max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
+```
 
 ## Development
 
-Install dependencies:
+### Prerequisites
 
-```bash
-bun install
-```
+- [Bun](https://bun.sh/) (runtime, package manager, test runner, compiler)
 
-Run the TypeScript entrypoint:
+### Make targets
 
-```bash
-make run
-```
+Run `make` or `make help` to see all available targets:
 
-Build, run, and clean the local binary:
-
-```bash
-make build
-make start
-make clean
-```
-
-Show all available tasks:
-
-```bash
-make
-```
-
-## Quality
-
-```bash
-make check
-make test
-```
-
-`make check` runs TypeScript checking and Biome. `make test` runs Bun's test runner.
+| Target | Description |
+|--------|-------------|
+| `make help` | Show all available targets |
+| `make install` | Install dependencies |
+| `make install-frozen` | Install dependencies from lockfile |
+| `make run` | Run project as TypeScript sources |
+| `make build` | Build the `./bin/suiseki` binary |
+| `make start` | Run the compiled binary |
+| `make clean` | Remove build artifacts and caches |
+| `make test` | Run all tests with coverage |
+| `make check` | Type check + lint/format (auto-fix) |
+| `make check-ci` | Type check + lint (no auto-fix, for CI) |
+| `make format` | Format code with Biome |
 
 ## Tech Stack
 
-- Bun + TypeScript for runtime, tests, and single-binary compilation.
-- Shiki for syntax tokenization and theme compatibility.
-- `@pierre/diffs` for diff parsing and iteration.
-- Arktype for runtime validation of config, CLI options, and external boundaries.
-- Biome for formatting and linting.
+- **Bun** + TypeScript for runtime, tests, and single-binary compilation.
+- **Shiki** for syntax tokenization and theme compatibility.
+- **`@pierre/diffs`** for diff parsing and iteration.
+- **Arktype** for runtime validation of config, CLI options, and external boundaries.
+- **ansis** for ANSI escape code helpers.
+- **smol-toml** for TOML config parsing.
+- **Biome** for formatting and linting.
 
 ## Roadmap
 
-- **v0:** local unified-view diff renderer with Shiki highlighting and diff backgrounds.
+- **v0:** local unified-view diff renderer with Shiki highlighting, diff backgrounds, and pager support. *(current)*
 - **v1:** practical `delta` alternative with split view, inline word diff, theming, pager integration, config, and prebuilt binaries.
 - **v2:** broader terminal code viewer with `view` and `tree` subcommands.
 
 ## Credits
 
-`suiseki` is built around the idea that Pierre's renderer-agnostic parsing and tree logic, paired with Shiki's syntax and theme ecosystem, can produce a better terminal viewing experience for code. Credits are planned for Pierre, Shiki, and other runtime dependencies as the implementation lands.
+`suiseki` is built around the idea that Pierre's renderer-agnostic parsing and tree logic, paired with Shiki's syntax and theme ecosystem, can produce a better terminal viewing experience for code.
