@@ -129,7 +129,7 @@ Run `make` or `make help` to see all available targets:
 ## Roadmap
 
 - **v0:** local unified-view diff renderer with Shiki highlighting, diff backgrounds, and pager support.
-- **v1:** practical `delta` alternative with split view, inline word diff, theming, pager integration, config, and prebuilt binaries. *(current)*
+- **v1:** practical terminal diff renderer with split view, inline word diff, theming, pager integration, config, and prebuilt binaries. *(current)*
 - **v2:** broader terminal code viewer with `view` and `tree` subcommands.
 
 ## Credits
