@@ -70,7 +70,7 @@ export async function renderDiff(
   configuration: SuisekiConfig,
 ): Promise<string> {
   const patches = parsePatchFiles(stripAnsi(patch), undefined, true)
-  const theme = resolveTheme(configuration.theme)
+  const theme = resolveTheme(configuration.shiki.theme)
   const highlighter = await getSingletonHighlighter({
     themes: [theme],
     langs: ["plaintext"],
@@ -85,7 +85,9 @@ export async function renderDiff(
       const lineNumberWidth = getLineNumberWidth(file)
       const emittedHunkIndexes = new Set<number>()
 
-      outputLines.push(emitFileHeader(file))
+      if (configuration.pierre["file-header"]) {
+        outputLines.push(emitFileHeader(file))
+      }
 
       iterateOverDiff({
         diff: file,
@@ -93,7 +95,9 @@ export async function renderDiff(
         callback(line) {
           if (line.hunk != null && !emittedHunkIndexes.has(line.hunkIndex)) {
             emittedHunkIndexes.add(line.hunkIndex)
-            outputLines.push(emitHunkHeader(line.hunk))
+            if (configuration.pierre["hunk-header"] === "full") {
+              outputLines.push(emitHunkHeader(line.hunk))
+            }
           }
 
           if (line.collapsedBefore > 0) {
@@ -167,21 +171,24 @@ function renderUnifiedDiffLine({
   terminalWidth,
   theme,
 }: RenderUnifiedDiffLineParams): string {
-  const backgroundColor = getBackgroundColor(line.kind)
+  const backgroundColor = configuration.pierre["diff-background"]
+    ? getBackgroundColor(line.kind)
+    : undefined
   const sign = getChangeSign(line.kind)
   const normalizedContent = stripLineEnding(line.content)
   const gutter = renderGutter({
     backgroundColor,
     lineNumber: line.lineNumber,
     lineNumberWidth,
-    lineNumbers: configuration["line-numbers"],
+    lineNumbers: configuration.pierre["line-numbers"],
     sign,
   })
   const renderedContent = tokenizeLine({
+    content: normalizedContent,
     highlighter,
     language,
+    maxLineLength: configuration.shiki["max-line-length"],
     theme,
-    content: normalizedContent,
   })
     .map((token) => emitToken({ token, backgroundColor }))
     .join("")
@@ -198,6 +205,7 @@ type TokenizeLineParams = {
   content: string
   highlighter: Highlighter
   language: RenderLanguage
+  maxLineLength: number
   theme: BundledTheme
 }
 
@@ -205,10 +213,20 @@ function tokenizeLine({
   content,
   highlighter,
   language,
+  maxLineLength,
   theme,
 }: TokenizeLineParams) {
   if (content === "") {
     return []
+  }
+
+  if (content.length > maxLineLength) {
+    return (
+      highlighter.codeToTokensBase(content, {
+        lang: "plaintext",
+        theme,
+      })[0] ?? []
+    )
   }
 
   try {
@@ -339,7 +357,7 @@ function emitNoNewlineMarker({
 }: EmitNoNewlineMarkerParams): string {
   const gutter = renderGutter({
     lineNumberWidth,
-    lineNumbers: configuration["line-numbers"],
+    lineNumbers: configuration.pierre["line-numbers"],
     sign: " ",
   })
 

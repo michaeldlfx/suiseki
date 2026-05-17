@@ -4,30 +4,65 @@ import { type } from "arktype"
 import { type BundledTheme, bundledThemes } from "shiki"
 import { parse } from "smol-toml"
 
-export const vSuisekiConfig = type({
-  theme: "string",
+export const vPierreConfig = type({
   view: '"unified"',
   "line-numbers": "boolean",
   "change-indicator": '"sign" | "bar" | "background"',
+  "diff-background": "boolean",
+  "file-header": "boolean",
+  "hunk-header": '"full" | "none"',
 })
-type ConfigKey = "theme" | "view" | "line-numbers" | "change-indicator"
 
-const CONFIGURATION_KEYS: ConfigKey[] = [
-  "theme",
+export const vShikiConfig = type({
+  theme: "string",
+  "max-line-length": "number",
+})
+
+export const vSuisekiConfig = type({
+  pierre: vPierreConfig,
+  shiki: vShikiConfig,
+})
+
+type PierreKey =
+  | "view"
+  | "line-numbers"
+  | "change-indicator"
+  | "diff-background"
+  | "file-header"
+  | "hunk-header"
+type ShikiKey = "theme" | "max-line-length"
+
+const TOP_LEVEL_KEYS = ["pierre", "shiki"] as const
+const PIERRE_KEYS: PierreKey[] = [
   "view",
   "line-numbers",
   "change-indicator",
+  "diff-background",
+  "file-header",
+  "hunk-header",
 ]
+const SHIKI_KEYS: ShikiKey[] = ["theme", "max-line-length"]
 
 export type SuisekiConfig = typeof vSuisekiConfig.infer
 
-type ConfigFileData = Partial<Record<ConfigKey, unknown>>
+type ConfigFileData = {
+  pierre?: Partial<Record<PierreKey, unknown>>
+  shiki?: Partial<Record<ShikiKey, unknown>>
+}
 
 export const DEFAULT_CONFIG: SuisekiConfig = {
-  theme: "github-dark",
-  view: "unified",
-  "line-numbers": true,
-  "change-indicator": "sign",
+  pierre: {
+    view: "unified",
+    "line-numbers": true,
+    "change-indicator": "sign",
+    "diff-background": true,
+    "file-header": true,
+    "hunk-header": "full",
+  },
+  shiki: {
+    theme: "github-dark",
+    "max-line-length": 10000,
+  },
 }
 
 export class ConfigError extends Error {
@@ -41,10 +76,20 @@ type LoadedConfigFile = {
 
 export async function loadConfig(): Promise<SuisekiConfig> {
   const loadedConfigFile = await loadFirstConfigFile()
+  const fileConfiguration = loadedConfigFile?.configuration ?? {}
+  const environmentOverrides = readEnvironmentOverrides()
+
   const mergedConfiguration = {
-    ...DEFAULT_CONFIG,
-    ...(loadedConfigFile?.configuration ?? {}),
-    ...readEnvironmentOverrides(),
+    pierre: {
+      ...DEFAULT_CONFIG.pierre,
+      ...(fileConfiguration.pierre ?? {}),
+      ...(environmentOverrides.pierre ?? {}),
+    },
+    shiki: {
+      ...DEFAULT_CONFIG.shiki,
+      ...(fileConfiguration.shiki ?? {}),
+      ...(environmentOverrides.shiki ?? {}),
+    },
   }
 
   return validateConfig(
@@ -111,32 +156,102 @@ function parseConfigFile(
 function readEnvironmentOverrides(): ConfigFileData {
   const environmentOverrides: ConfigFileData = {}
 
-  if (Bun.env.SUISEKI_THEME != null && Bun.env.SUISEKI_THEME !== "") {
-    environmentOverrides.theme = Bun.env.SUISEKI_THEME
+  const pierreOverrides = readPierreEnvironmentOverrides()
+  if (Object.keys(pierreOverrides).length > 0) {
+    environmentOverrides.pierre = pierreOverrides
   }
 
-  if (Bun.env.SUISEKI_VIEW != null && Bun.env.SUISEKI_VIEW !== "") {
-    environmentOverrides.view = Bun.env.SUISEKI_VIEW
+  const shikiOverrides = readShikiEnvironmentOverrides()
+  if (Object.keys(shikiOverrides).length > 0) {
+    environmentOverrides.shiki = shikiOverrides
+  }
+
+  return environmentOverrides
+}
+
+function readPierreEnvironmentOverrides(): Partial<Record<PierreKey, unknown>> {
+  const overrides: Partial<Record<PierreKey, unknown>> = {}
+
+  if (
+    Bun.env.SUISEKI_PIERRE_VIEW != null &&
+    Bun.env.SUISEKI_PIERRE_VIEW !== ""
+  ) {
+    overrides.view = Bun.env.SUISEKI_PIERRE_VIEW
   }
 
   if (
-    Bun.env.SUISEKI_LINE_NUMBERS != null &&
-    Bun.env.SUISEKI_LINE_NUMBERS !== ""
+    Bun.env.SUISEKI_PIERRE_LINE_NUMBERS != null &&
+    Bun.env.SUISEKI_PIERRE_LINE_NUMBERS !== ""
   ) {
-    environmentOverrides["line-numbers"] = parseEnvironmentBoolean({
-      name: "SUISEKI_LINE_NUMBERS",
-      value: Bun.env.SUISEKI_LINE_NUMBERS,
+    overrides["line-numbers"] = parseEnvironmentBoolean({
+      name: "SUISEKI_PIERRE_LINE_NUMBERS",
+      value: Bun.env.SUISEKI_PIERRE_LINE_NUMBERS,
     })
   }
 
   if (
-    Bun.env.SUISEKI_CHANGE_INDICATOR != null &&
-    Bun.env.SUISEKI_CHANGE_INDICATOR !== ""
+    Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR != null &&
+    Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR !== ""
   ) {
-    environmentOverrides["change-indicator"] = Bun.env.SUISEKI_CHANGE_INDICATOR
+    overrides["change-indicator"] = Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR
   }
 
-  return environmentOverrides
+  if (
+    Bun.env.SUISEKI_PIERRE_DIFF_BACKGROUND != null &&
+    Bun.env.SUISEKI_PIERRE_DIFF_BACKGROUND !== ""
+  ) {
+    overrides["diff-background"] = parseEnvironmentBoolean({
+      name: "SUISEKI_PIERRE_DIFF_BACKGROUND",
+      value: Bun.env.SUISEKI_PIERRE_DIFF_BACKGROUND,
+    })
+  }
+
+  if (
+    Bun.env.SUISEKI_PIERRE_FILE_HEADER != null &&
+    Bun.env.SUISEKI_PIERRE_FILE_HEADER !== ""
+  ) {
+    overrides["file-header"] = parseEnvironmentBoolean({
+      name: "SUISEKI_PIERRE_FILE_HEADER",
+      value: Bun.env.SUISEKI_PIERRE_FILE_HEADER,
+    })
+  }
+
+  if (
+    Bun.env.SUISEKI_PIERRE_HUNK_HEADER != null &&
+    Bun.env.SUISEKI_PIERRE_HUNK_HEADER !== ""
+  ) {
+    overrides["hunk-header"] = Bun.env.SUISEKI_PIERRE_HUNK_HEADER
+  }
+
+  return overrides
+}
+
+function readShikiEnvironmentOverrides(): Partial<Record<ShikiKey, unknown>> {
+  const overrides: Partial<Record<ShikiKey, unknown>> = {}
+
+  if (
+    Bun.env.SUISEKI_SHIKI_THEME != null &&
+    Bun.env.SUISEKI_SHIKI_THEME !== ""
+  ) {
+    overrides.theme = Bun.env.SUISEKI_SHIKI_THEME
+  }
+
+  if (
+    Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH != null &&
+    Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH !== ""
+  ) {
+    const parsedValue = Number(Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH)
+
+    if (Number.isNaN(parsedValue) || parsedValue <= 0) {
+      throw new ConfigError(
+        "SUISEKI_SHIKI_MAX_LINE_LENGTH must be a positive number",
+      )
+    }
+
+    overrides["max-line-length"] = parsedValue
+  }
+
+  return overrides
 }
 
 type ParseEnvironmentBooleanParams = {
@@ -172,9 +287,9 @@ function validateConfig(configuration: unknown, source: string): SuisekiConfig {
     )
   }
 
-  if (!isBundledThemeName(validatedConfiguration.theme)) {
+  if (!isBundledThemeName(validatedConfiguration.shiki.theme)) {
     throw new ConfigError(
-      `Invalid suiseki configuration from ${source}: theme must be a bundled Shiki theme name`,
+      `Invalid suiseki configuration from ${source}: shiki.theme must be a bundled Shiki theme name`,
     )
   }
   return validatedConfiguration
@@ -199,14 +314,39 @@ function assertKnownConfigKeys(
   value: Record<string, unknown>,
   configFilePath: string,
 ): asserts value is ConfigFileData {
-  const unknownKeys = Object.keys(value).filter(
-    (key) =>
-      !CONFIGURATION_KEYS.some((configurationKey) => configurationKey === key),
+  assertKnownKeysInSet(Object.keys(value), TOP_LEVEL_KEYS, configFilePath)
+
+  if (value.pierre != null) {
+    assertPlainObject(value.pierre, `${configFilePath} [pierre]`)
+    assertKnownKeysInSet(
+      Object.keys(value.pierre),
+      PIERRE_KEYS,
+      `${configFilePath} [pierre]`,
+    )
+  }
+
+  if (value.shiki != null) {
+    assertPlainObject(value.shiki, `${configFilePath} [shiki]`)
+    assertKnownKeysInSet(
+      Object.keys(value.shiki),
+      SHIKI_KEYS,
+      `${configFilePath} [shiki]`,
+    )
+  }
+}
+
+function assertKnownKeysInSet(
+  keys: string[],
+  allowedKeys: readonly string[],
+  source: string,
+): void {
+  const unknownKeys = keys.filter(
+    (key) => !allowedKeys.some((allowed) => allowed === key),
   )
 
   if (unknownKeys.length > 0) {
     throw new ConfigError(
-      `${configFilePath} contains unsupported key(s): ${unknownKeys.join(", ")}`,
+      `${source} contains unsupported key(s): ${unknownKeys.join(", ")}`,
     )
   }
 }
