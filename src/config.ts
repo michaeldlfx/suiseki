@@ -57,7 +57,7 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
     "change-indicator": "sign",
     "diff-background": true,
     "file-header": true,
-    "hunk-header": "full",
+    "hunk-header": "none",
   },
   shiki: {
     theme: "github-dark",

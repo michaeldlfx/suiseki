@@ -54,17 +54,6 @@ type RenderUnifiedDiffLineParams = {
 
 type RenderLanguage = BundledLanguage | SpecialLanguage
 
-type RenderPierreDiffLineParams = {
-  configuration: SuisekiConfig
-  file: FileDiffMetadata
-  highlighter: Highlighter
-  language: RenderLanguage
-  line: DiffLineCallbackProps
-  lineNumberWidth: number
-  terminalWidth: number
-  theme: BundledTheme
-}
-
 export async function renderDiff(
   patch: string,
   configuration: SuisekiConfig,
@@ -84,10 +73,9 @@ export async function renderDiff(
       const language = await resolveLanguageForFile(highlighter, file.name)
       const lineNumberWidth = getLineNumberWidth(file)
       const emittedHunkIndexes = new Set<number>()
-
-      if (configuration.pierre["file-header"]) {
-        outputLines.push(emitFileHeader(file))
-      }
+      const fileLines: string[] = []
+      let additionCount = 0
+      let deletionCount = 0
 
       iterateOverDiff({
         diff: file,
@@ -96,21 +84,25 @@ export async function renderDiff(
           if (line.hunk != null && !emittedHunkIndexes.has(line.hunkIndex)) {
             emittedHunkIndexes.add(line.hunkIndex)
             if (configuration.pierre["hunk-header"] === "full") {
-              outputLines.push(emitHunkHeader(line.hunk))
+              fileLines.push(emitHunkHeader(line.hunk))
             }
           }
 
           if (line.collapsedBefore > 0) {
-            outputLines.push(emitCollapsedLineCount(line.collapsedBefore))
+            fileLines.push(emitUnmodifiedLineCount(line.collapsedBefore))
           }
 
-          outputLines.push(
-            renderPierreDiffLine({
+          const unifiedLine = resolveUnifiedDiffLine(file, line)
+
+          if (unifiedLine.kind === "addition") additionCount++
+          if (unifiedLine.kind === "deletion") deletionCount++
+
+          fileLines.push(
+            renderUnifiedDiffLine({
               configuration,
-              file,
               highlighter,
               language,
-              line,
+              line: unifiedLine,
               lineNumberWidth,
               terminalWidth: getTerminalWidth(),
               theme,
@@ -118,7 +110,7 @@ export async function renderDiff(
           )
 
           if (hasNoNewlineMarker(line)) {
-            outputLines.push(
+            fileLines.push(
               emitNoNewlineMarker({
                 configuration,
                 lineNumberWidth,
@@ -127,39 +119,27 @@ export async function renderDiff(
           }
 
           if (line.collapsedAfter > 0) {
-            outputLines.push(emitCollapsedLineCount(line.collapsedAfter))
+            fileLines.push(emitUnmodifiedLineCount(line.collapsedAfter))
           }
 
           return undefined
         },
       })
+
+      if (configuration.pierre["file-header"]) {
+        outputLines.push(
+          emitFileHeader({
+            file,
+            additionCount,
+            deletionCount,
+          }),
+        )
+      }
+      outputLines.push(...fileLines)
     }
   }
 
   return outputLines.join("\n")
-}
-
-function renderPierreDiffLine({
-  configuration,
-  file,
-  highlighter,
-  language,
-  line,
-  lineNumberWidth,
-  terminalWidth,
-  theme,
-}: RenderPierreDiffLineParams): string {
-  const unifiedLine = resolveUnifiedDiffLine(file, line)
-
-  return renderUnifiedDiffLine({
-    configuration,
-    highlighter,
-    language,
-    line: unifiedLine,
-    lineNumberWidth,
-    terminalWidth,
-    theme,
-  })
 }
 
 function renderUnifiedDiffLine({
@@ -324,12 +304,32 @@ function renderPatchMetadata(patchMetadata: string | undefined): string[] {
     )
 }
 
-function emitFileHeader(file: FileDiffMetadata): string {
-  return emitStyledText({
+type EmitFileHeaderParams = {
+  file: FileDiffMetadata
+  additionCount: number
+  deletionCount: number
+}
+
+function emitFileHeader({
+  file,
+  additionCount,
+  deletionCount,
+}: EmitFileHeaderParams): string {
+  const fileName = emitStyledText({
     text: `diff ${formatFileName(file)}`,
     foregroundColor: "#79b8ff",
     bold: true,
   })
+  const deletionSummary = emitStyledText({
+    text: `-${deletionCount}`,
+    foregroundColor: "#f85149",
+  })
+  const additionSummary = emitStyledText({
+    text: `+${additionCount}`,
+    foregroundColor: "#3fb950",
+  })
+
+  return `${fileName}  ${deletionSummary} ${additionSummary}`
 }
 
 function emitHunkHeader(hunk: Hunk): string {
@@ -339,9 +339,14 @@ function emitHunkHeader(hunk: Hunk): string {
   })
 }
 
-function emitCollapsedLineCount(collapsedLineCount: number): string {
+function emitUnmodifiedLineCount(unmodifiedLineCount: number): string {
+  const label =
+    unmodifiedLineCount === 1
+      ? "1 unmodified line"
+      : `${unmodifiedLineCount} unmodified lines`
+
   return emitStyledText({
-    text: `... ${collapsedLineCount} hidden line(s) ...`,
+    text: label,
     foregroundColor: "#8b949e",
   })
 }
