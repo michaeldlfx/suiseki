@@ -61,6 +61,19 @@ describe("cli-options.ts", () => {
       expect(parsedOptions.overrides).toEqual({})
     })
 
+    test("parses --no-color into noColor flag", () => {
+      const parsedOptions = parseCliOptions(["--no-color"])
+
+      expect(parsedOptions.noColor).toEqual(true)
+      expect(parsedOptions.gitArguments).toEqual([])
+    })
+
+    test("defaults noColor to false when --no-color absent", () => {
+      const parsedOptions = parseCliOptions([])
+
+      expect(parsedOptions.noColor).toEqual(false)
+    })
+
     test("throws when a value flag is missing a value", () => {
       expect(() => parseCliOptions(["--view"])).toThrow(CliOptionsError)
       expect(() => parseCliOptions(["--view"])).toThrow("requires a value")
