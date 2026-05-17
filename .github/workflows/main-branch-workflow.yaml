@@ -1,0 +1,34 @@
+name: main branch workflow
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  main_branch_workflow:
+    name: main branch workflow
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install dependencies
+        run: make install-frozen
+
+      - name: run checks
+        run: make check-ci
+
+      - name: run tests
+        run: make test
+
+      - name: build
+        run: make build

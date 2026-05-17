@@ -1,0 +1,80 @@
+name: claude code review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  claude_code_review:
+    name: claude code review
+    if: github.event.pull_request.user.login != 'renovate[bot]' && github.event.pull_request.draft == false
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: run claude code review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this PR and provide ONLY actionable feedback. Structure your response as:
+
+            ## Summary
+            Brief 1-2 sentence overview of what was implemented and overall quality.
+
+            ## Approved
+            If no blocking issues or action items, just say "No issues found - ready to merge"
+
+            OR
+
+            ## Blocking Issues
+            Critical issues that must be fixed before merge (compilation errors, security vulnerabilities, etc.)
+
+            ## Action Items
+            Specific, actionable improvements needed:
+            - **src/file.ts** - Issue description
+              ```typescript
+              // Current code (problematic)
+              const bad = "example"
+
+              // Suggested fix
+              const good = "example"
+              ```
+
+            IMPORTANT GUIDELINES:
+            - Include EITHER "approved" or "blocking items" in the response structure, not both.
+            - Only include parts of the above response structure IF they contain content.
+            - Skip extensive praise and "good job" comments
+            - Focus on what needs to change, not what's already good
+            - Be specific with file names and line numbers
+            - Suggest concrete fixes, not vague improvements
+            - If everything looks good, keep it brief. Summary section is plenty.
+            - FOLLOW project conventions documented in AGENTS.md
+            - Focus on business logic, validation, API handlers, and security
+            - Do not run `bun` scripts. There are other CI/CD jobs that do this.
+
+            COMMENT MANAGEMENT:
+            - Avoid backticks (`) in gh pr comment --body parameters
+            - Use the file-based approach:
+              1. Write comment to a file: `Write` tool to create /tmp/review_comment.md
+              2. Post comment: `gh pr comment --edit-last --create-if-none --body-file /tmp/review_comment.md`
+
+          claude_args: '--model opus --allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Write"'
