@@ -100,17 +100,15 @@ suiseki/                  # local dev dir; GitHub repo is <handle>/suiseki-cli
 │   ├── cli.ts           # entry — v0: linear; v1: arg parsing; v2: subcommand router
 │   ├── config.ts        # TOML loading + resolution order
 │   ├── render/
-│   │   ├── diff.ts      # v0+: diff pipeline
-│   │   ├── file.ts      # v2+: plain file pipeline
-│   │   └── tree.ts      # v2+: static tree pipeline
+│   │   ├── diff.ts       # v0+: diff pipeline
+│   │   ├── diff.test.ts  # colocated Bun tests
+│   │   ├── file.ts       # v2+: plain file pipeline
+│   │   ├── file.test.ts  # v2
+│   │   ├── tree.ts       # v2+: static tree pipeline
+│   │   └── tree.test.ts  # v2
 │   ├── ansi.ts          # token → ANSI emit with optional bg overlay
 │   ├── gutter.ts        # line numbers, signs, side columns
 │   └── types.ts
-├── test/
-│   ├── render-diff.test.ts
-│   ├── render-file.test.ts     # v2
-│   ├── render-tree.test.ts     # v2
-│   └── fixtures/
 ├── bin/
 │   └── suiseki          # gitignored local dev binary from `make build`
 └── dist/                # gitignored release artifacts from multi-target builds
@@ -137,19 +135,19 @@ suiseki/                  # local dev dir; GitHub repo is <handle>/suiseki-cli
 
 ### v0 progress checklist
 
-- [ ] Commit the baseline scaffold: Bun/TypeScript project, `make` commands, `src/cli.ts`, README, AGENTS, and this plan.
-- [ ] Install renderer dependencies: `@pierre/diffs`, Shiki, `ansis`, and `smol-toml`.
-- [ ] Confirm `@pierre/diffs` imports cleanly in Bun and compiled binaries without DOM globals.
-- [ ] Confirm `iterateOverDiff` callback shape against the Pierre source before building renderer logic around it.
-- [ ] Implement CLI input selection: stdin patch input or `git diff` subprocess output.
-- [ ] Support Git pager mode so `core.pager = suiseki` can render normal `git diff`, `git show`, and related commands without manual piping.
-- [ ] Implement config loading with `smol-toml`, Arktype validation, environment overrides, and built-in defaults.
+- [x] Commit the baseline scaffold: Bun/TypeScript project, `make` commands, `src/cli.ts`, README, AGENTS, and this plan.
+- [x] Install renderer dependencies: `@pierre/diffs`, Shiki, `ansis`, and `smol-toml`.
+- [x] Confirm `@pierre/diffs` parser imports cleanly in Bun and compiled binaries without DOM globals; vendor non-public `iterateOverDiff`.
+- [x] Confirm `iterateOverDiff` callback shape against the Pierre source before building renderer logic around it.
+- [x] Implement CLI input selection: stdin patch input or `git diff` subprocess output.
+- [x] Support Git pager mode so `core.pager = suiseki` can render normal `git diff`, `git show`, and related commands without manual piping.
+- [x] Implement config loading with `smol-toml`, Arktype validation, environment overrides, and built-in defaults.
 - [ ] Map Pierre and Shiki options into explicit `suiseki` config keys without arbitrary passthrough.
-- [ ] Implement unified diff rendering with file headers, hunk headers, Shiki token colors, and diff backgrounds.
-- [ ] Implement ANSI emission with foreground/background composition, font styles, line padding, and reset safety.
-- [ ] Implement gutters with line numbers, change signs, and stable width calculation.
-- [ ] Add fixtures and Bun tests for the basic unified diff renderer.
-- [ ] Build `bin/suiseki`, run it against a real diff, and keep the compiled binary size under the sanity-check threshold.
+- [x] Implement unified diff rendering with file headers, hunk headers, Shiki token colors, and diff backgrounds.
+- [x] Implement ANSI emission with foreground/background composition, font styles, line padding, and reset safety.
+- [x] Implement gutters with line numbers, change signs, and stable width calculation.
+- [x] Add colocated Bun tests for the basic unified diff renderer.
+- [x] Build `bin/suiseki`, run it against a real diff, and keep the compiled binary size under the sanity-check threshold.
 
 ### 1. Scaffold
 
@@ -198,7 +196,7 @@ Resolution order (highest → lowest):
 5. `~/.suiseki/config.toml`
 6. Built-in defaults
 
-Parse with `smol-toml`. On first run when nothing exists, write a commented default `config.toml` to the resolved dir (XDG path preferred).
+Parse with `smol-toml`. Keep config loading read-only in line with the project invariant: do not create or modify config files on first run. A future explicit `suiseki init` command may write a commented default config if the read-only CLI scope is intentionally expanded for that command.
 
 Default config:
 ```toml
@@ -287,21 +285,22 @@ Prepend to each rendered line:
 ```
 Sign is `+` / `-` / ` `. Line number padded to width of largest line number in file. Sign-colored (green/red/dim) so it stays legible even if bg colors are disabled.
 
-### 7. Tests (`test/render-diff.test.ts`)
+### 7. Tests (`src/render/diff.test.ts`)
 
 ```ts
 import { test, expect } from 'bun:test'
-import { renderDiff } from '../src/render/diff'
-import { readFileSync } from 'fs'
+import { renderDiff } from './diff'
+
+const patch = `diff --git a/src/example.ts b/src/example.ts
+...`
 
 test('renders basic unified diff', async () => {
-  const patch = readFileSync('test/fixtures/basic.diff', 'utf8')
   const out = await renderDiff(patch, { theme: 'github-dark', view: 'unified', 'line-numbers': true, 'change-indicator': 'sign' })
-  expect(out).toMatchSnapshot()
+  expect(out).toContain('\x1b[48;2;14;46;14m')
 })
 ```
 
-Generate fixture: `cd ~/some-repo && git diff HEAD~1 HEAD > test/fixtures/basic.diff`.
+Keep small renderer fixtures inline in colocated tests. Add fixture files only when the input becomes too large to read clearly in the test body.
 
 Run: `bun test`.
 
@@ -324,9 +323,19 @@ bun run build
 
 ### v0 sanity checks (first 10 minutes)
 
-- [ ] `import { parsePatchFiles, iterateOverDiff } from '@pierre/diffs'` resolves without crashing on a `document`/`window` reference at module load
-- [ ] Local compiled binary `bin/suiseki` stays under ~80 MB after tree-shaking. If much larger, vendor `parsePatchFiles.ts` + `iterateOverDiff.ts` + `types.ts` from the Pierre repo into `vendored/pierre/` with the Apache LICENSE preserved.
-- [ ] Confirm `iterateOverDiff` signature against the Pierre repo's `src/utils/iterateOverDiff.ts`
+- [x] `parsePatchFiles` from `@pierre/diffs` resolves without crashing on a `document`/`window` reference at module load.
+- [x] Local compiled binary `bin/suiseki` stays under ~80 MB after tree-shaking. If much larger, vendor `parsePatchFiles.ts` + `iterateOverDiff.ts` + `types.ts` from the Pierre repo into `vendored/pierre/` with the Apache LICENSE preserved.
+- [x] Confirm `iterateOverDiff` signature against the Pierre repo's `src/utils/iterateOverDiff.ts`
+
+### Pierre source reference
+
+Keep a sibling checkout of Pierre at `../pierre` during v0 work and treat it as read-only reference material. The canonical source for the callback contract is:
+
+```text
+../pierre/packages/diffs/src/utils/iterateOverDiff.ts
+```
+
+As of `@pierre/diffs@1.1.22`, the top-level package import exposes `parsePatchFiles` but does not expose `iterateOverDiff`, and the package `exports` map blocks direct imports from `dist/utils/iterateOverDiff.js`. For v0, verify the callback shape against the sibling source checkout, then either walk Pierre's parsed hunk model locally or vendor the small renderer-agnostic utility with the Apache license preserved. Do not build renderer logic around private package subpaths.
 
 ---
 
