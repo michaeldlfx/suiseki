@@ -408,7 +408,6 @@ In rough order of value:
 - [x] **Default usage on empty invocation** — when `suiseki` runs with no stdin and no git diff arguments, print concise usage/setup guidance instead of silently exiting on an empty working tree.
 - [x] **Pierre terminal-surface mapping** — inventory Pierre's public diff/tree options and expose terminal-relevant, renderer-agnostic diff options through typed config keys and matching CLI flags. Tree options stay v2-only until `@pierre/trees` is added.
 - [x] **Pager auto-spawn** — when stdout is a TTY, spawn `less -R --no-init --quit-if-one-screen`. `--no-pager` flag or `SUISEKI_NO_PAGER=1` env to disable. (Landed in v0 polish.)
-- [ ] **Streaming for huge diffs** — switch from `parsePatchFiles` (whole-buffer) to `@pierre/diffs`'s `shiki-stream` tokenizer for diffs over N lines. Memory stays bounded.
 - [x] **Git integration docs** in README. Shipped per-command pager settings (`pager.diff`, `pager.show`) instead of `core.pager` so that plain `git log` keeps Git's normal pager output. README also documents `interactive.diffFilter` and the equivalent `~/.gitconfig` snippet. Suiseki reads its own TOML config, not git config, so no `[suiseki]` section appears in the .gitconfig example.
 - [x] **Custom theme loading** — read `~/.suiseki/themes/*.json` (also `$SUISEKI_CONFIG_DIR/themes/` and `$XDG_CONFIG_HOME/suiseki/themes/`) as Shiki themes, name resolved from filename. Each file is parsed with `string.json.parse` then validated against `vCustomTheme` (Arktype) before being registered with the highlighter. Invalid files are skipped with a stderr warning.
 - [x] **Pierre theme pack** — bundle `@pierre/theme`'s Shiki themes as built-ins. All four variants available: `pierre-dark`, `pierre-light`, `pierre-dark-vibrant`, `pierre-light-vibrant`. Registered with the Shiki highlighter at init.
@@ -418,7 +417,7 @@ In rough order of value:
   - [x] split view
   - [x] inline word/char diff
   - [x] merge conflicts
-  - [ ] large patches (blocked on streaming)
+  - [ ] large patches (deferred to performance work in `02-extending-suiseki.md`)
 
 ### README polish
 
