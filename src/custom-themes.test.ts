@@ -98,6 +98,30 @@ describe("custom-themes.ts", () => {
       )
     })
 
+    test("skips subdirectories whose names end in .json", async () => {
+      const themeDirectory = join(temporaryHomeDirectory, ".suiseki", "themes")
+      await mkdir(join(themeDirectory, "bogus.json"), { recursive: true })
+      await writeFile(
+        join(themeDirectory, "good.json"),
+        JSON.stringify(MINIMAL_THEME),
+      )
+
+      const stderrWrite = process.stderr.write
+      const capturedStderr: string[] = []
+      process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+        capturedStderr.push(
+          typeof chunk === "string" ? chunk : chunk.toString(),
+        )
+        return true
+      }) as typeof process.stderr.write
+
+      const customThemes = await loadCustomThemes()
+      process.stderr.write = stderrWrite
+
+      expect(Object.keys(customThemes)).toEqual(["good"])
+      expect(capturedStderr.join("")).toEqual("")
+    })
+
     test("skips non-JSON files", async () => {
       const themeDirectory = join(temporaryHomeDirectory, ".suiseki", "themes")
       await mkdir(themeDirectory, { recursive: true })

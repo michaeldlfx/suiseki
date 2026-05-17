@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs"
 import { readdir, readFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { basename, extname, join } from "node:path"
@@ -26,15 +27,18 @@ export async function loadCustomThemes(): Promise<CustomThemes> {
   for (const directory of getThemeDirectoryCandidates()) {
     const directoryEntries = await safeReaddir(directory)
     for (const entry of directoryEntries) {
-      if (extname(entry) !== ".json") {
+      if (!entry.isFile()) {
         continue
       }
-      const themeName = basename(entry, ".json")
+      if (extname(entry.name) !== ".json") {
+        continue
+      }
+      const themeName = basename(entry.name, ".json")
       if (Object.hasOwn(themes, themeName)) {
         continue
       }
       const theme = await loadThemeFile({
-        path: join(directory, entry),
+        path: join(directory, entry.name),
         themeName,
       })
       if (theme != null) {
@@ -66,9 +70,9 @@ function getThemeDirectoryCandidates(): string[] {
   return candidates
 }
 
-async function safeReaddir(directory: string): Promise<string[]> {
+async function safeReaddir(directory: string): Promise<Dirent[]> {
   try {
-    return await readdir(directory)
+    return await readdir(directory, { withFileTypes: true })
   } catch {
     return []
   }
