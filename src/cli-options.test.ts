@@ -54,13 +54,6 @@ describe("cli-options.ts", () => {
       expect(parsedOptions.overrides).toEqual({})
     })
 
-    test("treats color-only as a supported no-op for git diff filters", () => {
-      const parsedOptions = parseCliOptions(["--color-only"])
-
-      expect(parsedOptions.gitArguments).toEqual([])
-      expect(parsedOptions.overrides).toEqual({})
-    })
-
     test("parses --no-color into noColor flag", () => {
       const parsedOptions = parseCliOptions(["--no-color"])
 
@@ -77,6 +70,20 @@ describe("cli-options.ts", () => {
     test("throws when a value flag is missing a value", () => {
       expect(() => parseCliOptions(["--view"])).toThrow(CliOptionsError)
       expect(() => parseCliOptions(["--view"])).toThrow("requires a value")
+    })
+
+    test("throws when an inline value is empty", () => {
+      expect(() => parseCliOptions(["--theme="])).toThrow(CliOptionsError)
+      expect(() => parseCliOptions(["--theme="])).toThrow("requires a value")
+    })
+
+    test("consumes the next argument when an inline value is empty", () => {
+      const parsedOptions = parseCliOptions(["--theme=", "github-light"])
+
+      expect(parsedOptions.overrides).toEqual({
+        shiki: { theme: "github-light" },
+      })
+      expect(parsedOptions.gitArguments).toEqual([])
     })
 
     test("throws when a numeric flag has an invalid value", () => {

@@ -1,5 +1,6 @@
 import { type } from "arktype"
-import { type SuisekiConfigOverrides, vCliConfigOverrides } from "./config"
+import { vStringBoolean } from "./common/validators"
+import { vCliConfigOverrides } from "./config"
 
 export const vParsedCliOptions = type({
   gitArguments: "string[]",
@@ -10,41 +11,24 @@ export const vParsedCliOptions = type({
 })
 export type ParsedCliOptions = typeof vParsedCliOptions.infer
 
-type CliValueTarget =
-  | {
-      key: keyof NonNullable<SuisekiConfigOverrides["pierre"]>
-      section: "pierre"
-    }
-  | {
-      key: keyof NonNullable<SuisekiConfigOverrides["shiki"]>
-      section: "shiki"
-    }
-
-type CliBooleanTarget =
-  | {
-      key: keyof NonNullable<SuisekiConfigOverrides["pierre"]>
-      section: "pierre"
-    }
-  | {
-      key: keyof NonNullable<SuisekiConfigOverrides["shiki"]>
-      section: "shiki"
-    }
+type CliConfigOverrides = ParsedCliOptions["overrides"]
+type CliFlagTarget =
+  | { section: "pierre"; key: keyof NonNullable<CliConfigOverrides["pierre"]> }
+  | { section: "shiki"; key: keyof NonNullable<CliConfigOverrides["shiki"]> }
 
 type DraftCliConfigOverrides = {
-  pierre?: Record<string, unknown>
-  shiki?: Record<string, unknown>
+  [Section in keyof CliConfigOverrides]?: Partial<
+    Record<keyof NonNullable<CliConfigOverrides[Section]>, unknown>
+  >
 }
 
 type DraftParsedCliOptions = Omit<ParsedCliOptions, "overrides"> & {
   overrides: DraftCliConfigOverrides
 }
 
-const VALUE_FLAGS: Record<string, CliValueTarget> = {
+const VALUE_FLAGS: Record<string, CliFlagTarget> = {
   "--view": { section: "pierre", key: "view" },
-  "--change-indicator": {
-    section: "pierre",
-    key: "change-indicator",
-  },
+  "--change-indicator": { section: "pierre", key: "change-indicator" },
   "--hunk-header": { section: "pierre", key: "hunk-header" },
   "--word-diff": { section: "pierre", key: "word-diff" },
   "--max-line-diff-length": {
@@ -52,19 +36,16 @@ const VALUE_FLAGS: Record<string, CliValueTarget> = {
     key: "max-line-diff-length",
   },
   "--theme": { section: "shiki", key: "theme" },
-  "--max-line-length": {
-    section: "shiki",
-    key: "max-line-length",
-  },
+  "--max-line-length": { section: "shiki", key: "max-line-length" },
 }
 
-const BOOLEAN_FLAGS: Record<string, CliBooleanTarget> = {
+const BOOLEAN_FLAGS: Record<string, CliFlagTarget> = {
   "--line-numbers": { section: "pierre", key: "line-numbers" },
   "--diff-background": { section: "pierre", key: "diff-background" },
   "--file-header": { section: "pierre", key: "file-header" },
 }
 
-const NEGATED_BOOLEAN_FLAGS: Record<string, CliBooleanTarget> = {
+const NEGATED_BOOLEAN_FLAGS: Record<string, CliFlagTarget> = {
   "--no-line-numbers": { section: "pierre", key: "line-numbers" },
   "--no-diff-background": { section: "pierre", key: "diff-background" },
   "--no-file-header": { section: "pierre", key: "file-header" },
@@ -84,10 +65,7 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
   }
 
   for (let index = 0; index < argumentsFromCli.length; index++) {
-    const argument = argumentsFromCli[index]
-    if (argument == null) {
-      break
-    }
+    const argument = argumentsFromCli[index] as string
 
     if (argument === "--") {
       parsedOptions.gitArguments.push(...argumentsFromCli.slice(index + 1))
@@ -109,27 +87,24 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
       continue
     }
 
-    if (argument === "--color-only") {
-      continue
-    }
-
     const [flag, inlineValue] = splitInlineValue(argument)
     const valueTarget = VALUE_FLAGS[flag]
     if (valueTarget != null) {
-      const rawValue =
-        inlineValue ??
-        readNextFlagValue({
-          argumentsFromCli,
-          flag,
-          index,
-        })
+      const needsNextArgument = inlineValue == null || inlineValue === ""
+      const rawValue = needsNextArgument
+        ? readNextFlagValue({
+            argumentsFromCli,
+            flag,
+            index,
+          })
+        : inlineValue
       setConfigOverride({
         overrides: parsedOptions.overrides,
         target: valueTarget,
         value: rawValue,
       })
 
-      if (inlineValue == null) {
+      if (needsNextArgument) {
         index++
       }
       continue
@@ -217,24 +192,16 @@ type ParseBooleanFlagParams = {
 }
 
 function parseBooleanFlag({ flag, rawValue }: ParseBooleanFlagParams): boolean {
-  const normalizedValue = rawValue.toLowerCase()
-
-  if (["1", "true", "yes", "on"].includes(normalizedValue)) {
-    return true
+  const parsed = vStringBoolean(rawValue)
+  if (parsed instanceof type.errors) {
+    throw new CliOptionsError(`${flag} must be one of true, false`)
   }
-
-  if (["0", "false", "no", "off"].includes(normalizedValue)) {
-    return false
-  }
-
-  throw new CliOptionsError(
-    `${flag} must be one of true, false, 1, 0, yes, no, on, or off`,
-  )
+  return parsed
 }
 
 type SetConfigOverrideParams = {
   overrides: DraftCliConfigOverrides
-  target: CliBooleanTarget | CliValueTarget
+  target: CliFlagTarget
   value: boolean | string
 }
 
