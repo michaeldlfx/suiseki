@@ -583,7 +583,7 @@ function getChangeSign(kind: DiffLineKind): ChangeSign {
 }
 
 function stripLineEnding(line: string): string {
-  return line.replace(/\r?\n$/, "")
+  return line.replace(/(\r\n|\r|\n)$/, "")
 }
 
 function getTerminalWidth(): number {
