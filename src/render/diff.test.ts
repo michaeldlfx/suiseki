@@ -296,6 +296,19 @@ index 1111111..2222222 100644
     expect(renderedDiff).toContain(";48;2;")
   })
 
+  test("renders with a Pierre theme registered alongside Shiki bundled themes", async () => {
+    const configuration = configWith({
+      shiki: { theme: "pierre-dark" },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("src/example.ts")
+    expect(plainRenderedDiff).toContain("-1 +2")
+    expect(renderedDiff).toContain(";48;2;")
+  })
+
   test("falls back to plaintext tokenization for lines exceeding shiki.max-line-length", async () => {
     const longLine = "a".repeat(200)
     const longLineDiff = `diff --git a/long.txt b/long.txt
