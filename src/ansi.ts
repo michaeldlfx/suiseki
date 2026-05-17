@@ -137,7 +137,7 @@ function parseHexColor(hexColor: string): ColorTuple | undefined {
     ]
   }
 
-  if (/^[0-9a-fA-F]{6,8}$/.test(normalizedColor)) {
+  if (/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(normalizedColor)) {
     return [
       Number.parseInt(normalizedColor.slice(0, 2), 16),
       Number.parseInt(normalizedColor.slice(2, 4), 16),
