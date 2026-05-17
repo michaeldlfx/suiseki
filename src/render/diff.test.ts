@@ -39,8 +39,7 @@ describe("renderDiff", () => {
       `2 +    const message = \`Hello ${templateInterpolation}\``,
     )
     expect(plainRenderedDiff).toContain("3 +    console.info(message)")
-    expect(renderedDiff).toContain(";48;2;14;46;14m")
-    expect(renderedDiff).toContain(";48;2;46;14;14m")
+    expect(renderedDiff).toContain(";48;2;")
   })
 
   test("file header includes change summary with deletion and addition counts", async () => {
@@ -89,8 +88,7 @@ describe("renderDiff", () => {
 
     const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
 
-    expect(renderedDiff).not.toContain(";48;2;14;46;14m")
-    expect(renderedDiff).not.toContain(";48;2;46;14;14m")
+    expect(renderedDiff).not.toContain(";48;2;")
   })
 
   test("omits file header when pierre.file-header is false", async () => {
@@ -217,6 +215,19 @@ index 1111111..2222222 100644
     expect(plainRenderedDiff).toContain("→")
     expect(plainRenderedDiff).toContain("src/old.ts")
     expect(plainRenderedDiff).toContain("src/new.ts")
+  })
+
+  test("adapts colors to a light theme", async () => {
+    const configuration = configWith({
+      shiki: { theme: "github-light" },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("src/example.ts")
+    expect(plainRenderedDiff).toContain("-1 +2")
+    expect(renderedDiff).toContain(";48;2;")
   })
 
   test("falls back to plaintext tokenization for lines exceeding shiki.max-line-length", async () => {

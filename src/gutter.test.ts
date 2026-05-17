@@ -2,10 +2,17 @@ import { describe, expect, test } from "bun:test"
 import { stripAnsi } from "./ansi"
 import { renderGutter } from "./gutter"
 
+const TEST_COLORS = {
+  gutterForegroundColor: "#8b949e",
+  additionSignColor: "#3fb950",
+  deletionSignColor: "#f85149",
+}
+
 describe("gutter.ts", () => {
   describe("renderGutter", () => {
     test("renders line numbers and signs", () => {
       const gutter = renderGutter({
+        ...TEST_COLORS,
         lineNumber: 42,
         lineNumberWidth: 3,
         lineNumbers: true,
@@ -18,6 +25,7 @@ describe("gutter.ts", () => {
 
     test("renders only signs when line numbers are disabled", () => {
       const gutter = renderGutter({
+        ...TEST_COLORS,
         lineNumber: 42,
         lineNumberWidth: 3,
         lineNumbers: false,
