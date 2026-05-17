@@ -1,6 +1,15 @@
 import { type } from "arktype"
 import { type SuisekiConfigOverrides, vCliConfigOverrides } from "./config"
 
+export const vParsedCliOptions = type({
+  gitArguments: "string[]",
+  help: "boolean",
+  noColor: "boolean",
+  noPager: "boolean",
+  overrides: vCliConfigOverrides,
+})
+export type ParsedCliOptions = typeof vParsedCliOptions.infer
+
 type CliValueTarget =
   | {
       key: keyof NonNullable<SuisekiConfigOverrides["pierre"]>
@@ -20,13 +29,6 @@ type CliBooleanTarget =
       key: keyof NonNullable<SuisekiConfigOverrides["shiki"]>
       section: "shiki"
     }
-
-export type ParsedCliOptions = {
-  gitArguments: string[]
-  help: boolean
-  noPager: boolean
-  overrides: SuisekiConfigOverrides
-}
 
 type DraftCliConfigOverrides = {
   pierre?: Record<string, unknown>
@@ -76,6 +78,7 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
   const parsedOptions: DraftParsedCliOptions = {
     gitArguments: [],
     help: false,
+    noColor: false,
     noPager: false,
     overrides: {},
   }
@@ -98,6 +101,11 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
 
     if (argument === "--no-pager") {
       parsedOptions.noPager = true
+      continue
+    }
+
+    if (argument === "--no-color") {
+      parsedOptions.noColor = true
       continue
     }
 
@@ -156,10 +164,19 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
     parsedOptions.gitArguments.push(argument)
   }
 
-  return {
-    ...parsedOptions,
-    overrides: validateCliConfigOverrides(parsedOptions.overrides),
+  return validateParsedCliOptions(parsedOptions)
+}
+
+function validateParsedCliOptions(
+  parsedOptions: DraftParsedCliOptions,
+): ParsedCliOptions {
+  const validatedOptions = vParsedCliOptions(parsedOptions)
+
+  if (validatedOptions instanceof type.errors) {
+    throw new CliOptionsError(`Invalid CLI option: ${validatedOptions.summary}`)
   }
+
+  return validatedOptions
 }
 
 type SplitInlineValueResult = [flag: string, value: string | undefined]
@@ -240,18 +257,4 @@ function setConfigOverride({
   }
   const section = overrides.shiki
   section[target.key] = value
-}
-
-function validateCliConfigOverrides(
-  overrides: DraftCliConfigOverrides,
-): SuisekiConfigOverrides {
-  const validatedOverrides = vCliConfigOverrides(overrides)
-
-  if (validatedOverrides instanceof type.errors) {
-    throw new CliOptionsError(
-      `Invalid CLI option: ${validatedOverrides.summary}`,
-    )
-  }
-
-  return validatedOverrides
 }

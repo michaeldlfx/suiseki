@@ -1,3 +1,4 @@
+import { stripAnsi } from "./ansi"
 import { parseCliOptions } from "./cli-options"
 import { loadConfig, parseEnvironmentBoolean } from "./config"
 import { renderDiff } from "./render/diff"
@@ -16,6 +17,13 @@ class CliError extends Error {
 async function main(): Promise<void> {
   const parsedOptions = parseCliOptions(process.argv.slice(2))
   if (parsedOptions.help) {
+    process.stdout.write(`${getHelpText()}\n`)
+    return
+  }
+
+  const emptyDirectInvocation =
+    process.stdin.isTTY === true && parsedOptions.gitArguments.length === 0
+  if (emptyDirectInvocation) {
     process.stdout.write(`${getHelpText()}\n`)
     return
   }
@@ -43,7 +51,8 @@ async function main(): Promise<void> {
     return
   }
 
-  const output = `${renderedDiff}\n`
+  const noColor = parsedOptions.noColor || (Bun.env.NO_COLOR ?? "") !== ""
+  const output = `${noColor ? stripAnsi(renderedDiff) : renderedDiff}\n`
 
   if (!noPager && process.stdout.isTTY === true) {
     await writeWithPager(output)
@@ -54,7 +63,20 @@ async function main(): Promise<void> {
 
 function getHelpText(): string {
   return [
-    "usage: suiseki [options] [git-diff-args...]",
+    "suiseki - terminal diff renderer",
+    "",
+    "Usage:",
+    "  git diff | suiseki",
+    "  suiseki [options] [git-diff-args...]",
+    "",
+    "Examples:",
+    "  suiseki --staged",
+    "  suiseki --view split --theme github-light HEAD~1",
+    "",
+    "Git setup:",
+    "  git config --global pager.diff 'suiseki'",
+    "  git config --global pager.show 'suiseki'",
+    "  git config --global interactive.diffFilter 'suiseki --color-only'",
     "",
     "Options:",
     "  --view <unified|split>",
@@ -68,7 +90,12 @@ function getHelpText(): string {
     "  --max-line-diff-length <number>",
     "  --max-line-length <number>",
     "  --no-pager",
+    "  --no-color   (also honors NO_COLOR env var)",
     "  --color-only",
+    "",
+    "More:",
+    "  Config: ~/.suiseki/config.toml or .suiseki.toml (per-repo). Env vars: SUISEKI_*.",
+    "  Docs:   https://github.com/michaeldlfx/suiseki#readme",
   ].join("\n")
 }
 
