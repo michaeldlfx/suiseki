@@ -51,6 +51,17 @@ describe("renderDiff", () => {
     expect(plainRenderedDiff).toContain("-1 +2")
   })
 
+  test("adds blank line after file header before diff rows", async () => {
+    const renderedDiff = await renderDiff(BASIC_DIFF, DEFAULT_CONFIG)
+    const renderedLines = renderedDiff.split("\n")
+    const fileHeaderIndex = renderedLines.findIndex((line) =>
+      stripAnsi(line).includes("src/example.ts"),
+    )
+
+    assert(fileHeaderIndex !== -1, "file header should be rendered")
+    expect(renderedLines[fileHeaderIndex + 1]).toEqual("")
+  })
+
   test("does not show hunk header by default", async () => {
     const renderedDiff = await renderDiff(BASIC_DIFF, DEFAULT_CONFIG)
     const plainRenderedDiff = stripAnsi(renderedDiff)
@@ -192,10 +203,12 @@ rename to new-name.ts
 `
     const renderedDiff = await renderDiff(renamedFileDiff, DEFAULT_CONFIG)
     const plainRenderedDiff = stripAnsi(renderedDiff)
+    const renderedLines = renderedDiff.split("\n")
 
     expect(plainRenderedDiff).toContain("→ old-name.ts")
     expect(plainRenderedDiff).toContain("old-name.ts")
     expect(plainRenderedDiff).toContain("new-name.ts")
+    expect(renderedLines).toHaveLength(1)
   })
 
   test("file header shows → icon for renamed file with content changes", async () => {

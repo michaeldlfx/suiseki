@@ -220,6 +220,9 @@ export async function renderDiff(
             terminalWidth,
           }),
         )
+        if (fileLines.length > 0) {
+          outputLines.push("")
+        }
       }
       outputLines.push(...fileLines)
       fileIndex++
