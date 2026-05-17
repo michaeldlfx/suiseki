@@ -159,12 +159,16 @@ type SplitLayout = {
 
 type RenderLanguage = BundledLanguage | SpecialLanguage
 
-export async function renderDiff(
-  patch: string,
+export type DiffRenderContext = {
+  highlighter: Highlighter
+  palette: ThemePalette
+  terminalWidth: number
+  themeName: string
+}
+
+export async function prepareDiffRenderContext(
   configuration: SuisekiConfig,
-): Promise<string> {
-  // parsePatchFiles(source, fileFilter, parsePatchMetadata)
-  const patches = parsePatchFiles(stripAnsi(patch), undefined, true)
+): Promise<DiffRenderContext> {
   const themeInput = resolveTheme({
     customThemes: configuration.customThemes,
     themeName: configuration.shiki.theme,
@@ -193,7 +197,22 @@ export async function renderDiff(
     highlighter,
     theme: themeName,
   })
-  const terminalWidth = getTerminalWidth()
+  return {
+    highlighter,
+    palette,
+    terminalWidth: getTerminalWidth(),
+    themeName,
+  }
+}
+
+export async function renderDiff(
+  patch: string,
+  configuration: SuisekiConfig,
+): Promise<string> {
+  // parsePatchFiles(source, fileFilter, parsePatchMetadata)
+  const patches = parsePatchFiles(stripAnsi(patch), undefined, true)
+  const { highlighter, palette, terminalWidth, themeName } =
+    await prepareDiffRenderContext(configuration)
   const outputLines: string[] = []
 
   let fileIndex = 0
@@ -206,129 +225,140 @@ export async function renderDiff(
         outputLines.push("")
       }
 
-      const language = await resolveLanguageForFile(highlighter, file.name)
-      const lineNumberWidth = getLineNumberWidth(file)
-      const emittedHunkIndexes = new Set<number>()
-      const inlineHighlightRanges = resolveInlineHighlightRanges({
+      const fileBlock = await renderFileDiff({
         configuration,
+        context: { highlighter, palette, terminalWidth, themeName },
         file,
       })
-      const fileLines: string[] = []
-      let additionCount = 0
-      let deletionCount = 0
-
-      iterateOverDiff({
-        diff: file,
-        diffStyle: configuration.pierre.view,
-        callback(line) {
-          if (line.hunk != null && !emittedHunkIndexes.has(line.hunkIndex)) {
-            emittedHunkIndexes.add(line.hunkIndex)
-            if (configuration.pierre["hunk-header"] === "full") {
-              fileLines.push(emitHunkHeader(line.hunk, palette))
-            }
-          }
-
-          if (line.collapsedBefore > 0) {
-            fileLines.push(
-              emitUnmodifiedLineCount(
-                line.collapsedBefore,
-                terminalWidth,
-                palette,
-              ),
-            )
-          }
-
-          if (line.type === "change" && line.additionLine != null) {
-            additionCount++
-          }
-          if (line.type === "change" && line.deletionLine != null) {
-            deletionCount++
-          }
-
-          if (configuration.pierre.view === "split") {
-            fileLines.push(
-              ...renderSplitDiffLine({
-                configuration,
-                highlighter,
-                language,
-                line: resolveSplitDiffLine(file, line, inlineHighlightRanges),
-                lineNumberWidth,
-                palette,
-                terminalWidth,
-                theme: themeName,
-              }),
-            )
-          } else {
-            const unifiedLine = resolveUnifiedDiffLine(
-              file,
-              line,
-              inlineHighlightRanges,
-            )
-
-            fileLines.push(
-              renderUnifiedDiffLine({
-                configuration,
-                highlighter,
-                language,
-                line: unifiedLine,
-                lineNumberWidth,
-                palette,
-                terminalWidth,
-                theme: themeName,
-              }),
-            )
-          }
-
-          if (hasNoNewlineMarker(line)) {
-            const noNewlineMarker =
-              configuration.pierre.view === "split"
-                ? emitSplitNoNewlineMarker({
-                    palette,
-                    terminalWidth,
-                  })
-                : emitNoNewlineMarker({
-                    configuration,
-                    lineNumberWidth,
-                    palette,
-                  })
-
-            fileLines.push(noNewlineMarker)
-          }
-
-          if (line.collapsedAfter > 0) {
-            fileLines.push(
-              emitUnmodifiedLineCount(
-                line.collapsedAfter,
-                terminalWidth,
-                palette,
-              ),
-            )
-          }
-
-          return undefined
-        },
-      })
-
-      if (configuration.pierre["file-header"]) {
-        outputLines.push(
-          emitFileHeader({
-            file,
-            additionCount,
-            deletionCount,
-            palette,
-            terminalWidth,
-          }),
-        )
-        if (fileLines.length > 0) {
-          outputLines.push("")
-        }
-      }
-      outputLines.push(...fileLines)
+      outputLines.push(...fileBlock)
       fileIndex++
     }
   }
 
   return outputLines.join("\n")
+}
+
+type RenderFileDiffParams = {
+  configuration: SuisekiConfig
+  context: DiffRenderContext
+  file: FileDiffMetadata
+}
+
+export async function renderFileDiff({
+  configuration,
+  context,
+  file,
+}: RenderFileDiffParams): Promise<string[]> {
+  const { highlighter, palette, terminalWidth, themeName } = context
+  const language = await resolveLanguageForFile(highlighter, file.name)
+  const lineNumberWidth = getLineNumberWidth(file)
+  const emittedHunkIndexes = new Set<number>()
+  const inlineHighlightRanges = resolveInlineHighlightRanges({
+    configuration,
+    file,
+  })
+  const fileLines: string[] = []
+  let additionCount = 0
+  let deletionCount = 0
+
+  iterateOverDiff({
+    diff: file,
+    diffStyle: configuration.pierre.view,
+    callback(line) {
+      if (line.hunk != null && !emittedHunkIndexes.has(line.hunkIndex)) {
+        emittedHunkIndexes.add(line.hunkIndex)
+        if (configuration.pierre["hunk-header"] === "full") {
+          fileLines.push(emitHunkHeader(line.hunk, palette))
+        }
+      }
+
+      if (line.collapsedBefore > 0) {
+        fileLines.push(
+          emitUnmodifiedLineCount(line.collapsedBefore, terminalWidth, palette),
+        )
+      }
+
+      if (line.type === "change" && line.additionLine != null) {
+        additionCount++
+      }
+      if (line.type === "change" && line.deletionLine != null) {
+        deletionCount++
+      }
+
+      if (configuration.pierre.view === "split") {
+        fileLines.push(
+          ...renderSplitDiffLine({
+            configuration,
+            highlighter,
+            language,
+            line: resolveSplitDiffLine(file, line, inlineHighlightRanges),
+            lineNumberWidth,
+            palette,
+            terminalWidth,
+            theme: themeName,
+          }),
+        )
+      } else {
+        const unifiedLine = resolveUnifiedDiffLine(
+          file,
+          line,
+          inlineHighlightRanges,
+        )
+
+        fileLines.push(
+          renderUnifiedDiffLine({
+            configuration,
+            highlighter,
+            language,
+            line: unifiedLine,
+            lineNumberWidth,
+            palette,
+            terminalWidth,
+            theme: themeName,
+          }),
+        )
+      }
+
+      if (hasNoNewlineMarker(line)) {
+        const noNewlineMarker =
+          configuration.pierre.view === "split"
+            ? emitSplitNoNewlineMarker({ palette, terminalWidth })
+            : emitNoNewlineMarker({
+                configuration,
+                lineNumberWidth,
+                palette,
+              })
+
+        fileLines.push(noNewlineMarker)
+      }
+
+      if (line.collapsedAfter > 0) {
+        fileLines.push(
+          emitUnmodifiedLineCount(line.collapsedAfter, terminalWidth, palette),
+        )
+      }
+
+      return undefined
+    },
+  })
+
+  const output: string[] = []
+  if (configuration.pierre["file-header"]) {
+    output.push(
+      emitFileHeader({
+        file,
+        additionCount,
+        deletionCount,
+        palette,
+        terminalWidth,
+      }),
+    )
+    if (fileLines.length > 0) {
+      output.push("")
+    }
+  }
+  output.push(...fileLines)
+  return output
 }
 
 function renderUnifiedDiffLine({
