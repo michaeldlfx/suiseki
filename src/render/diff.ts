@@ -56,6 +56,7 @@ export async function renderDiff(
   patch: string,
   configuration: SuisekiConfig,
 ): Promise<string> {
+  // parsePatchFiles(source, fileFilter, parsePatchMetadata)
   const patches = parsePatchFiles(stripAnsi(patch), undefined, true)
   const theme = resolveTheme(configuration.shiki.theme)
   const highlighter = await getSingletonHighlighter({
@@ -63,6 +64,7 @@ export async function renderDiff(
     langs: ["plaintext"],
   })
   const palette = resolveThemePalette({ highlighter, theme })
+  const terminalWidth = getTerminalWidth()
   const outputLines: string[] = []
 
   let fileIndex = 0
@@ -97,7 +99,7 @@ export async function renderDiff(
             fileLines.push(
               emitUnmodifiedLineCount(
                 line.collapsedBefore,
-                getTerminalWidth(),
+                terminalWidth,
                 palette,
               ),
             )
@@ -116,7 +118,7 @@ export async function renderDiff(
               line: unifiedLine,
               lineNumberWidth,
               palette,
-              terminalWidth: getTerminalWidth(),
+              terminalWidth,
               theme,
             }),
           )
@@ -135,7 +137,7 @@ export async function renderDiff(
             fileLines.push(
               emitUnmodifiedLineCount(
                 line.collapsedAfter,
-                getTerminalWidth(),
+                terminalWidth,
                 palette,
               ),
             )
@@ -152,7 +154,7 @@ export async function renderDiff(
             additionCount,
             deletionCount,
             palette,
-            terminalWidth: getTerminalWidth(),
+            terminalWidth,
           }),
         )
       }
@@ -198,6 +200,8 @@ function renderUnifiedDiffLine({
   })
     .map((token) => emitToken({ token, backgroundColor }))
     .join("")
+  // TODO: JS string length over-counts combining marks and under-counts CJK/emoji.
+  // Use a Unicode-aware width function (e.g. string-width) for correct padding.
   const visibleLength = gutter.visibleLength + normalizedContent.length
 
   return `${gutter.text}${renderedContent}${emitPadding({
@@ -446,36 +450,36 @@ function renderFormattedFileName(
   palette: ThemePalette,
 ): string {
   if (file.prevName != null && file.prevName !== file.name) {
-    const prev = splitPath(file.prevName)
-    const curr = splitPath(file.name)
+    const previous = splitPath(file.prevName)
+    const current = splitPath(file.name)
 
-    const prevRendered =
-      (prev.directory !== ""
+    const previousRendered =
+      (previous.directory !== ""
         ? emitStyledText({
-            text: prev.directory,
+            text: previous.directory,
             foregroundColor: palette.dimmed,
           })
         : "") +
       emitStyledText({
-        text: prev.fileName,
+        text: previous.fileName,
         foregroundColor: palette.foreground,
         bold: true,
       })
 
-    const currRendered =
-      (curr.directory !== ""
+    const currentRendered =
+      (current.directory !== ""
         ? emitStyledText({
-            text: curr.directory,
+            text: current.directory,
             foregroundColor: palette.dimmed,
           })
         : "") +
       emitStyledText({
-        text: curr.fileName,
+        text: current.fileName,
         foregroundColor: palette.foreground,
         bold: true,
       })
 
-    return `${prevRendered} ${emitStyledText({ text: "→", foregroundColor: palette.dimmed })} ${currRendered}`
+    return `${previousRendered} ${emitStyledText({ text: "→", foregroundColor: palette.dimmed })} ${currentRendered}`
   }
 
   const { directory, fileName } = splitPath(file.name)
