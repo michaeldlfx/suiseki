@@ -21,13 +21,6 @@
       "matchUpdateTypes": ["major"],
       "automerge": false,
       "automergeType": "pr"
-    },
-    {
-      "groupName": "excluded-major-upgrades",
-      "groupSlug": "excluded-major-upgrades",
-      "matchPackageNames": [],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
     }
   ],
   "lockFileMaintenance": {
