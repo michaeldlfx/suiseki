@@ -34,12 +34,14 @@ const BACKGROUND_ESCAPE_PATTERN = new RegExp(
 )
 
 function configWith(overrides: {
+  customThemes?: SuisekiConfig["customThemes"]
   pierre?: Partial<SuisekiConfig["pierre"]>
   shiki?: Partial<SuisekiConfig["shiki"]>
 }): SuisekiConfig {
   return {
     pierre: { ...DEFAULT_CONFIG.pierre, ...(overrides.pierre ?? {}) },
     shiki: { ...DEFAULT_CONFIG.shiki, ...(overrides.shiki ?? {}) },
+    customThemes: overrides.customThemes ?? {},
   }
 }
 

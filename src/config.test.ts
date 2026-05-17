@@ -89,6 +89,7 @@ describe("config.ts", () => {
           theme: "github-light",
           "max-line-length": 5000,
         },
+        customThemes: {},
       })
     })
 
