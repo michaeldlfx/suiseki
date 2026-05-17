@@ -69,13 +69,11 @@ describe("renderDiff", () => {
     expect(plainRenderedDiff).toContain("@@ -1,5 +1,6 @@")
   })
 
-  test("ends every rendered line with an ANSI reset", async () => {
+  test("ends every non-empty rendered line with an ANSI reset", async () => {
     const renderedDiff = await renderDiff(BASIC_DIFF, DEFAULT_CONFIG)
-    const renderedDiffLines = renderedDiff.split("\n")
+    const nonEmptyLines = renderedDiff.split("\n").filter((line) => line !== "")
 
-    expect(renderedDiffLines.every((line) => line.endsWith(RESET))).toEqual(
-      true,
-    )
+    expect(nonEmptyLines.every((line) => line.endsWith(RESET))).toEqual(true)
   })
 
   test("returns an empty string for empty input", async () => {
@@ -104,6 +102,121 @@ describe("renderDiff", () => {
     const plainRenderedDiff = stripAnsi(renderedDiff)
 
     expect(plainRenderedDiff).not.toContain("src/example.ts")
+  })
+
+  test("file header shows status icon for modified file", async () => {
+    const renderedDiff = await renderDiff(BASIC_DIFF, DEFAULT_CONFIG)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("Δ src/example.ts")
+  })
+
+  test("file header shows filename bold and directory dimmed", async () => {
+    const renderedDiff = await renderDiff(BASIC_DIFF, DEFAULT_CONFIG)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("src/")
+    expect(plainRenderedDiff).toContain("example.ts")
+  })
+
+  test("file header shows + icon for new files", async () => {
+    const newFileDiff = `diff --git a/new-file.ts b/new-file.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/new-file.ts
+@@ -0,0 +1 @@
++console.log("new")
+`
+    const renderedDiff = await renderDiff(newFileDiff, DEFAULT_CONFIG)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("+ new-file.ts")
+  })
+
+  test("file header shows - icon for deleted files", async () => {
+    const deletedFileDiff = `diff --git a/old-file.ts b/old-file.ts
+deleted file mode 100644
+index 1111111..0000000
+--- a/old-file.ts
++++ /dev/null
+@@ -1 +0,0 @@
+-console.log("old")
+`
+    const renderedDiff = await renderDiff(deletedFileDiff, DEFAULT_CONFIG)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("- old-file.ts")
+  })
+
+  test("adds blank line between files in multi-file diff", async () => {
+    const multiFileDiff = `diff --git a/file-a.ts b/file-a.ts
+index 1111111..2222222 100644
+--- a/file-a.ts
++++ b/file-a.ts
+@@ -1 +1 @@
+-const a = 1
++const a = 2
+diff --git a/file-b.ts b/file-b.ts
+index 3333333..4444444 100644
+--- a/file-b.ts
++++ b/file-b.ts
+@@ -1 +1 @@
+-const b = 1
++const b = 2
+`
+    const renderedDiff = await renderDiff(multiFileDiff, DEFAULT_CONFIG)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("file-a.ts")
+    expect(plainRenderedDiff).toContain("file-b.ts")
+
+    const lines = renderedDiff.split("\n")
+    const fileAHeaderIndex = lines.findIndex((line) =>
+      stripAnsi(line).includes("file-a.ts"),
+    )
+    const fileBHeaderIndex = lines.findIndex((line) =>
+      stripAnsi(line).includes("file-b.ts"),
+    )
+    const lineBetween = lines[fileBHeaderIndex - 1]
+
+    expect(fileAHeaderIndex).not.toEqual(-1)
+    expect(fileBHeaderIndex).not.toEqual(-1)
+    expect(lineBetween).toEqual("")
+  })
+
+  test("file header shows → icon and both paths for renamed files", async () => {
+    const renamedFileDiff = `diff --git a/old-name.ts b/new-name.ts
+similarity index 100%
+rename from old-name.ts
+rename to new-name.ts
+`
+    const renderedDiff = await renderDiff(renamedFileDiff, DEFAULT_CONFIG)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("→ old-name.ts")
+    expect(plainRenderedDiff).toContain("old-name.ts")
+    expect(plainRenderedDiff).toContain("new-name.ts")
+  })
+
+  test("file header shows → icon for renamed file with content changes", async () => {
+    const renamedChangedDiff = `diff --git a/src/old.ts b/src/new.ts
+similarity index 50%
+rename from src/old.ts
+rename to src/new.ts
+index 1111111..2222222 100644
+--- a/src/old.ts
++++ b/src/new.ts
+@@ -1 +1 @@
+-const x = 1
++const x = 2
+`
+    const renderedDiff = await renderDiff(renamedChangedDiff, DEFAULT_CONFIG)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("→")
+    expect(plainRenderedDiff).toContain("src/old.ts")
+    expect(plainRenderedDiff).toContain("src/new.ts")
   })
 
   test("falls back to plaintext tokenization for lines exceeding shiki.max-line-length", async () => {
