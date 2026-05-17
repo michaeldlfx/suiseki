@@ -153,7 +153,8 @@ export async function loadConfig({
 }
 
 function getConfigFileCandidates(): string[] {
-  const homeDirectory = homedir()
+  const homeDirectory =
+    Bun.env.HOME != null && Bun.env.HOME !== "" ? Bun.env.HOME : homedir()
   const configFileCandidates: string[] = []
   const explicitConfigDirectory = Bun.env.SUISEKI_CONFIG_DIR
 
