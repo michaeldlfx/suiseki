@@ -3,11 +3,45 @@ import { dirname, join, resolve } from "node:path"
 import { type } from "arktype"
 import { type BundledTheme, bundledThemes } from "shiki"
 import { parse } from "smol-toml"
+import { vStringBoolean } from "./common/validators"
 import { type CustomThemes, loadCustomThemes } from "./custom-themes"
 import { isPierreThemeName } from "./pierre-themes"
 
 const vPositiveInteger = type("number.integer > 0")
 const vPositiveIntegerString = type("string.numeric.parse").to(vPositiveInteger)
+
+const vSuisekiEnv = type({
+  "SUISEKI_PIERRE_VIEW?": '"unified" | "split"',
+  "SUISEKI_PIERRE_LINE_NUMBERS?": vStringBoolean,
+  "SUISEKI_PIERRE_CHANGE_INDICATOR?": '"sign" | "bar" | "background"',
+  "SUISEKI_PIERRE_DIFF_BACKGROUND?": vStringBoolean,
+  "SUISEKI_PIERRE_FILE_HEADER?": vStringBoolean,
+  "SUISEKI_PIERRE_HUNK_HEADER?": '"full" | "none"',
+  "SUISEKI_PIERRE_WORD_DIFF?": '"word-alt" | "word" | "char" | "none"',
+  "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH?": vPositiveIntegerString,
+  "SUISEKI_SHIKI_THEME?": "string",
+  "SUISEKI_SHIKI_MAX_LINE_LENGTH?": vPositiveIntegerString,
+  "SUISEKI_NO_PAGER?": vStringBoolean,
+})
+
+export type SuisekiEnv = typeof vSuisekiEnv.infer
+
+export function readSuisekiEnv(): SuisekiEnv {
+  // Drop undefined/empty values so optional schema keys treat them as absent
+  // rather than as present-but-wrong-type. Bun.env preserves keys set to
+  // undefined, and arktype's `?` is strict about that distinction.
+  const definedEnv: Record<string, string> = {}
+  for (const [key, value] of Object.entries(Bun.env)) {
+    if (value == null || value === "") continue
+    definedEnv[key] = value
+  }
+
+  const parsedEnv = vSuisekiEnv(definedEnv)
+  if (parsedEnv instanceof type.errors) {
+    throw new ConfigError(parsedEnv.summary)
+  }
+  return parsedEnv
+}
 
 const PIERRE_CONFIG_FIELDS = {
   view: '"unified" | "split"',
@@ -85,7 +119,7 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
     "max-line-diff-length": 1000,
   },
   shiki: {
-    theme: "github-dark",
+    theme: "pierre-dark",
     "max-line-length": 10000,
   },
   customThemes: {},
@@ -116,7 +150,7 @@ export async function loadConfig({
   const userConfiguration = loadedUserConfigFile?.configuration ?? {}
   const repositoryConfiguration =
     loadedRepositoryConfigFile?.configuration ?? {}
-  const environmentOverrides = readEnvironmentOverrides()
+  const environmentOverrides = environmentOverridesFrom(readSuisekiEnv())
 
   const mergedConfiguration = {
     pierre: {
@@ -251,159 +285,46 @@ function parseConfigFile(
   return validateConfigOverrides(parsedConfig, configFilePath)
 }
 
-function readEnvironmentOverrides(): SuisekiConfigOverrides {
-  const environmentOverrides: DraftSuisekiConfigOverrides = {}
-
-  const pierreOverrides = readPierreEnvironmentOverrides()
-  if (Object.keys(pierreOverrides).length > 0) {
-    environmentOverrides.pierre = pierreOverrides
+function environmentOverridesFrom(env: SuisekiEnv): SuisekiConfigOverrides {
+  const pierre: Partial<Record<PierreKey, unknown>> = {}
+  if (env.SUISEKI_PIERRE_VIEW !== undefined) {
+    pierre.view = env.SUISEKI_PIERRE_VIEW
+  }
+  if (env.SUISEKI_PIERRE_LINE_NUMBERS !== undefined) {
+    pierre["line-numbers"] = env.SUISEKI_PIERRE_LINE_NUMBERS
+  }
+  if (env.SUISEKI_PIERRE_CHANGE_INDICATOR !== undefined) {
+    pierre["change-indicator"] = env.SUISEKI_PIERRE_CHANGE_INDICATOR
+  }
+  if (env.SUISEKI_PIERRE_DIFF_BACKGROUND !== undefined) {
+    pierre["diff-background"] = env.SUISEKI_PIERRE_DIFF_BACKGROUND
+  }
+  if (env.SUISEKI_PIERRE_FILE_HEADER !== undefined) {
+    pierre["file-header"] = env.SUISEKI_PIERRE_FILE_HEADER
+  }
+  if (env.SUISEKI_PIERRE_HUNK_HEADER !== undefined) {
+    pierre["hunk-header"] = env.SUISEKI_PIERRE_HUNK_HEADER
+  }
+  if (env.SUISEKI_PIERRE_WORD_DIFF !== undefined) {
+    pierre["word-diff"] = env.SUISEKI_PIERRE_WORD_DIFF
+  }
+  if (env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH !== undefined) {
+    pierre["max-line-diff-length"] = env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH
   }
 
-  const shikiOverrides = readShikiEnvironmentOverrides()
-  if (Object.keys(shikiOverrides).length > 0) {
-    environmentOverrides.shiki = shikiOverrides
+  const shiki: Partial<Record<ShikiKey, unknown>> = {}
+  if (env.SUISEKI_SHIKI_THEME !== undefined) {
+    shiki.theme = env.SUISEKI_SHIKI_THEME
+  }
+  if (env.SUISEKI_SHIKI_MAX_LINE_LENGTH !== undefined) {
+    shiki["max-line-length"] = env.SUISEKI_SHIKI_MAX_LINE_LENGTH
   }
 
-  return validateConfigOverrides(environmentOverrides, "environment")
-}
+  const overrides: DraftSuisekiConfigOverrides = {}
+  if (Object.keys(pierre).length > 0) overrides.pierre = pierre
+  if (Object.keys(shiki).length > 0) overrides.shiki = shiki
 
-function readPierreEnvironmentOverrides(): Partial<Record<PierreKey, unknown>> {
-  const overrides: Partial<Record<PierreKey, unknown>> = {}
-
-  if (
-    Bun.env.SUISEKI_PIERRE_VIEW != null &&
-    Bun.env.SUISEKI_PIERRE_VIEW !== ""
-  ) {
-    overrides.view = Bun.env.SUISEKI_PIERRE_VIEW
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_LINE_NUMBERS != null &&
-    Bun.env.SUISEKI_PIERRE_LINE_NUMBERS !== ""
-  ) {
-    overrides["line-numbers"] = parseEnvironmentBoolean({
-      name: "SUISEKI_PIERRE_LINE_NUMBERS",
-      value: Bun.env.SUISEKI_PIERRE_LINE_NUMBERS,
-    })
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR != null &&
-    Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR !== ""
-  ) {
-    overrides["change-indicator"] = Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_DIFF_BACKGROUND != null &&
-    Bun.env.SUISEKI_PIERRE_DIFF_BACKGROUND !== ""
-  ) {
-    overrides["diff-background"] = parseEnvironmentBoolean({
-      name: "SUISEKI_PIERRE_DIFF_BACKGROUND",
-      value: Bun.env.SUISEKI_PIERRE_DIFF_BACKGROUND,
-    })
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_FILE_HEADER != null &&
-    Bun.env.SUISEKI_PIERRE_FILE_HEADER !== ""
-  ) {
-    overrides["file-header"] = parseEnvironmentBoolean({
-      name: "SUISEKI_PIERRE_FILE_HEADER",
-      value: Bun.env.SUISEKI_PIERRE_FILE_HEADER,
-    })
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_HUNK_HEADER != null &&
-    Bun.env.SUISEKI_PIERRE_HUNK_HEADER !== ""
-  ) {
-    overrides["hunk-header"] = Bun.env.SUISEKI_PIERRE_HUNK_HEADER
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_WORD_DIFF != null &&
-    Bun.env.SUISEKI_PIERRE_WORD_DIFF !== ""
-  ) {
-    overrides["word-diff"] = Bun.env.SUISEKI_PIERRE_WORD_DIFF
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH != null &&
-    Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH !== ""
-  ) {
-    overrides["max-line-diff-length"] = parseEnvironmentPositiveInteger({
-      name: "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH",
-      value: Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH,
-    })
-  }
-
-  return overrides
-}
-
-function readShikiEnvironmentOverrides(): Partial<Record<ShikiKey, unknown>> {
-  const overrides: Partial<Record<ShikiKey, unknown>> = {}
-
-  if (
-    Bun.env.SUISEKI_SHIKI_THEME != null &&
-    Bun.env.SUISEKI_SHIKI_THEME !== ""
-  ) {
-    overrides.theme = Bun.env.SUISEKI_SHIKI_THEME
-  }
-
-  if (
-    Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH != null &&
-    Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH !== ""
-  ) {
-    overrides["max-line-length"] = parseEnvironmentPositiveInteger({
-      name: "SUISEKI_SHIKI_MAX_LINE_LENGTH",
-      value: Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH,
-    })
-  }
-
-  return overrides
-}
-
-type ParseEnvironmentBooleanParams = {
-  name: string
-  value: string
-}
-
-export function parseEnvironmentBoolean({
-  name,
-  value,
-}: ParseEnvironmentBooleanParams): boolean {
-  const normalizedValue = value.toLowerCase()
-
-  if (["1", "true", "yes", "on"].includes(normalizedValue)) {
-    return true
-  }
-
-  if (["0", "false", "no", "off"].includes(normalizedValue)) {
-    return false
-  }
-
-  throw new ConfigError(
-    `${name} must be one of true, false, 1, 0, yes, no, on, or off`,
-  )
-}
-
-type ParseEnvironmentPositiveIntegerParams = {
-  name: string
-  value: string
-}
-
-function parseEnvironmentPositiveInteger({
-  name,
-  value,
-}: ParseEnvironmentPositiveIntegerParams): number {
-  const parsedValue = vPositiveIntegerString(value)
-
-  if (parsedValue instanceof type.errors) {
-    throw new ConfigError(`${name} ${parsedValue.summary}`)
-  }
-
-  return parsedValue
+  return validateConfigOverrides(overrides, "environment")
 }
 
 type ValidateConfigParams = {
