@@ -14,6 +14,7 @@ import {
   type Highlighter,
   type SpecialLanguage,
   type ThemedToken,
+  type ThemeRegistrationRaw,
 } from "shiki"
 import {
   emitPadding,
@@ -24,6 +25,7 @@ import {
 } from "../ansi"
 import { isBundledThemeName, type SuisekiConfig } from "../config"
 import { type ChangeMarker, renderGutter } from "../gutter"
+import { isPierreThemeName, PIERRE_THEMES } from "../pierre-themes"
 import { resolveThemePalette, type ThemePalette } from "../theme-palette"
 import {
   type DiffLineCallbackProps,
@@ -62,7 +64,7 @@ type RenderUnifiedDiffLineParams = {
   lineNumberWidth: number
   palette: ThemePalette
   terminalWidth: number
-  theme: BundledTheme
+  theme: string
 }
 
 type RenderSplitDiffLineParams = {
@@ -73,7 +75,7 @@ type RenderSplitDiffLineParams = {
   lineNumberWidth: number
   palette: ThemePalette
   terminalWidth: number
-  theme: BundledTheme
+  theme: string
 }
 
 type RenderSplitSideParams = {
@@ -84,7 +86,7 @@ type RenderSplitSideParams = {
   lineNumberWidth: number
   palette: ThemePalette
   side: SplitDiffSide | undefined
-  theme: BundledTheme
+  theme: string
 }
 
 type InlineHighlightRange = {
@@ -132,7 +134,7 @@ type RenderTokenizedContentParams = {
   inlineHighlightRanges: InlineHighlightRange[]
   language: RenderLanguage
   maxLineLength: number
-  theme: BundledTheme
+  theme: string
 }
 
 type RenderTokenWithInlineHighlightsParams = {
@@ -162,12 +164,19 @@ export async function renderDiff(
 ): Promise<string> {
   // parsePatchFiles(source, fileFilter, parsePatchMetadata)
   const patches = parsePatchFiles(stripAnsi(patch), undefined, true)
-  const theme = resolveTheme(configuration.shiki.theme)
+  const themeInput = resolveTheme(configuration.shiki.theme)
+  const themeName =
+    typeof themeInput === "string" ? themeInput : themeInput.name
+  if (themeName == null) {
+    throw new Error(
+      `Theme registration is missing a name: ${configuration.shiki.theme}`,
+    )
+  }
   const highlighter = await getSingletonHighlighter({
-    themes: [theme],
+    themes: [themeInput],
     langs: ["plaintext"],
   })
-  const palette = resolveThemePalette({ highlighter, theme })
+  const palette = resolveThemePalette({ highlighter, theme: themeName })
   const terminalWidth = getTerminalWidth()
   const outputLines: string[] = []
 
@@ -230,7 +239,7 @@ export async function renderDiff(
                 lineNumberWidth,
                 palette,
                 terminalWidth,
-                theme,
+                theme: themeName,
               }),
             )
           } else {
@@ -249,7 +258,7 @@ export async function renderDiff(
                 lineNumberWidth,
                 palette,
                 terminalWidth,
-                theme,
+                theme: themeName,
               }),
             )
           }
@@ -658,7 +667,7 @@ type TokenizeLineParams = {
   highlighter: Highlighter
   language: RenderLanguage
   maxLineLength: number
-  theme: BundledTheme
+  theme: string
 }
 
 function tokenizeLine({
@@ -672,24 +681,28 @@ function tokenizeLine({
     return []
   }
 
+  const themeOption = theme as BundledTheme
   if (content.length > maxLineLength) {
     return (
       highlighter.codeToTokensBase(content, {
         lang: "plaintext",
-        theme,
+        theme: themeOption,
       })[0] ?? []
     )
   }
 
   try {
     return (
-      highlighter.codeToTokensBase(content, { lang: language, theme })[0] ?? []
+      highlighter.codeToTokensBase(content, {
+        lang: language,
+        theme: themeOption,
+      })[0] ?? []
     )
   } catch {
     return (
       highlighter.codeToTokensBase(content, {
         lang: "plaintext",
-        theme,
+        theme: themeOption,
       })[0] ?? []
     )
   }
@@ -969,12 +982,16 @@ function isBundledLanguageName(
   return Object.hasOwn(bundledLanguages, languageName)
 }
 
-function resolveTheme(themeName: string): BundledTheme {
+function resolveTheme(themeName: string): BundledTheme | ThemeRegistrationRaw {
   if (isBundledThemeName(themeName)) {
     return themeName
   }
 
-  throw new Error(`Unknown Shiki theme: ${themeName}`)
+  if (isPierreThemeName(themeName)) {
+    return PIERRE_THEMES[themeName]
+  }
+
+  throw new Error(`Unknown theme: ${themeName}`)
 }
 
 function renderPatchMetadata(

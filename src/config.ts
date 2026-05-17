@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path"
 import { type } from "arktype"
 import { type BundledTheme, bundledThemes } from "shiki"
 import { parse } from "smol-toml"
+import { isPierreThemeName } from "./pierre-themes"
 
 const vPositiveInteger = type("number.integer > 0")
 const vPositiveIntegerString = type("string.numeric.parse").to(vPositiveInteger)
@@ -405,9 +406,9 @@ function validateConfig(configuration: unknown, source: string): SuisekiConfig {
     )
   }
 
-  if (!isBundledThemeName(validatedConfiguration.shiki.theme)) {
+  if (!isSupportedThemeName(validatedConfiguration.shiki.theme)) {
     throw new ConfigError(
-      `Invalid suiseki configuration from ${source}: shiki.theme must be a bundled Shiki theme name`,
+      `Invalid suiseki configuration from ${source}: shiki.theme must be a bundled Shiki theme or a Pierre theme name`,
     )
   }
 
@@ -433,6 +434,10 @@ export function isBundledThemeName(
   themeName: string,
 ): themeName is BundledTheme {
   return Object.hasOwn(bundledThemes, themeName)
+}
+
+export function isSupportedThemeName(themeName: string): boolean {
+  return isBundledThemeName(themeName) || isPierreThemeName(themeName)
 }
 
 function assertPlainObject(

@@ -1,4 +1,4 @@
-import type { BundledTheme, Highlighter } from "shiki"
+import type { Highlighter } from "shiki"
 
 export type ThemePalette = {
   foreground: string
@@ -16,7 +16,7 @@ export type ThemePalette = {
 
 type ResolveThemePaletteParams = {
   highlighter: Highlighter
-  theme: BundledTheme
+  theme: string
 }
 
 type RgbaColor = {
