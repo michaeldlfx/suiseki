@@ -1,0 +1,24 @@
+name: validate renovate config
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "renovate.json"
+  pull_request:
+    branches: [main]
+    paths:
+      - "renovate.json"
+
+jobs:
+  validate-config:
+    runs-on: ubuntu-latest
+    container:
+      image: renovate/renovate
+      options: --user root
+    steps:
+      - name: checkout
+        uses: actions/checkout@v5
+
+      - name: validate renovate config
+        run: renovate-config-validator renovate.json
