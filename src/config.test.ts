@@ -205,6 +205,20 @@ describe("config.ts", () => {
       expect(loadedConfig.pierre.view).toEqual("unified")
     })
 
+    test("applies CLI overrides above environment overrides", async () => {
+      Bun.env.SUISEKI_PIERRE_VIEW = "split"
+
+      const loadedConfig = await loadConfig({
+        overrides: {
+          pierre: {
+            view: "unified",
+          },
+        },
+      })
+
+      expect(loadedConfig.pierre.view).toEqual("unified")
+    })
+
     test("applies shiki environment overrides above config file", async () => {
       await mkdir(explicitConfigDirectory, { recursive: true })
       await writeFile(

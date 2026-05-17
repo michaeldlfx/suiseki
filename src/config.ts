@@ -4,7 +4,10 @@ import { type } from "arktype"
 import { type BundledTheme, bundledThemes } from "shiki"
 import { parse } from "smol-toml"
 
-export const vPierreConfig = type({
+const vPositiveInteger = type("number.integer > 0")
+const vPositiveIntegerString = type("string.numeric.parse").to(vPositiveInteger)
+
+const PIERRE_CONFIG_FIELDS = {
   view: '"unified" | "split"',
   "line-numbers": "boolean",
   "change-indicator": '"sign" | "bar" | "background"',
@@ -12,46 +15,56 @@ export const vPierreConfig = type({
   "file-header": "boolean",
   "hunk-header": '"full" | "none"',
   "word-diff": '"word" | "char" | "none"',
-  "max-line-diff-length": "number",
-})
+  "max-line-diff-length": vPositiveInteger,
+} as const
 
-export const vShikiConfig = type({
+const SHIKI_CONFIG_FIELDS = {
   theme: "string",
-  "max-line-length": "number",
-})
+  "max-line-length": vPositiveInteger,
+} as const
+
+const CLI_PIERRE_CONFIG_FIELDS = {
+  ...PIERRE_CONFIG_FIELDS,
+  "max-line-diff-length": vPositiveIntegerString,
+} as const
+
+const CLI_SHIKI_CONFIG_FIELDS = {
+  ...SHIKI_CONFIG_FIELDS,
+  "max-line-length": vPositiveIntegerString,
+} as const
+
+export const vPierreConfig = type(PIERRE_CONFIG_FIELDS)
+export const vShikiConfig = type(SHIKI_CONFIG_FIELDS)
+export const vCliPierreConfig = type(CLI_PIERRE_CONFIG_FIELDS)
+export const vCliShikiConfig = type(CLI_SHIKI_CONFIG_FIELDS)
 
 export const vSuisekiConfig = type({
   pierre: vPierreConfig,
   shiki: vShikiConfig,
 })
 
-type PierreKey =
-  | "view"
-  | "line-numbers"
-  | "change-indicator"
-  | "diff-background"
-  | "file-header"
-  | "hunk-header"
-  | "word-diff"
-  | "max-line-diff-length"
-type ShikiKey = "theme" | "max-line-length"
+export const vPierreConfigOverrides = vPierreConfig.partial()
+export const vShikiConfigOverrides = vShikiConfig.partial()
+export const vSuisekiConfigOverrides = type({
+  "pierre?": vPierreConfigOverrides,
+  "shiki?": vShikiConfigOverrides,
+})
+export const vCliConfigOverrides = type({
+  "pierre?": vCliPierreConfig.partial(),
+  "shiki?": vCliShikiConfig.partial(),
+})
+
+type PierreKey = keyof typeof PIERRE_CONFIG_FIELDS
+type ShikiKey = keyof typeof SHIKI_CONFIG_FIELDS
 
 const TOP_LEVEL_KEYS = ["pierre", "shiki"] as const
-const PIERRE_KEYS: PierreKey[] = [
-  "view",
-  "line-numbers",
-  "change-indicator",
-  "diff-background",
-  "file-header",
-  "hunk-header",
-  "word-diff",
-  "max-line-diff-length",
-]
-const SHIKI_KEYS: ShikiKey[] = ["theme", "max-line-length"]
+const PIERRE_KEYS = Object.keys(PIERRE_CONFIG_FIELDS)
+const SHIKI_KEYS = Object.keys(SHIKI_CONFIG_FIELDS)
 
 export type SuisekiConfig = typeof vSuisekiConfig.infer
+export type SuisekiConfigOverrides = typeof vSuisekiConfigOverrides.infer
 
-type ConfigFileData = {
+type DraftSuisekiConfigOverrides = {
   pierre?: Partial<Record<PierreKey, unknown>>
   shiki?: Partial<Record<ShikiKey, unknown>>
 }
@@ -78,16 +91,18 @@ export class ConfigError extends Error {
 }
 
 type LoadedConfigFile = {
-  configuration: ConfigFileData
+  configuration: SuisekiConfigOverrides
   path: string
 }
 
 type LoadConfigParams = {
   currentWorkingDirectory?: string
+  overrides?: SuisekiConfigOverrides
 }
 
 export async function loadConfig({
   currentWorkingDirectory = process.cwd(),
+  overrides = {},
 }: LoadConfigParams = {}): Promise<SuisekiConfig> {
   const loadedUserConfigFile = await loadFirstUserConfigFile()
   const loadedRepositoryConfigFile = await loadRepositoryConfigFile({
@@ -104,17 +119,20 @@ export async function loadConfig({
       ...(userConfiguration.pierre ?? {}),
       ...(repositoryConfiguration.pierre ?? {}),
       ...(environmentOverrides.pierre ?? {}),
+      ...(overrides.pierre ?? {}),
     },
     shiki: {
       ...DEFAULT_CONFIG.shiki,
       ...(userConfiguration.shiki ?? {}),
       ...(repositoryConfiguration.shiki ?? {}),
       ...(environmentOverrides.shiki ?? {}),
+      ...(overrides.shiki ?? {}),
     },
   }
   const configurationSources = [
     loadedUserConfigFile?.path,
     loadedRepositoryConfigFile?.path,
+    hasConfigOverrides(overrides) ? "CLI overrides" : undefined,
   ].filter((source) => source != null)
 
   return validateConfig(
@@ -206,7 +224,7 @@ function getRepositoryConfigFileCandidates(
 function parseConfigFile(
   fileText: string,
   configFilePath: string,
-): ConfigFileData {
+): SuisekiConfigOverrides {
   let parsedConfig: unknown
 
   try {
@@ -220,11 +238,11 @@ function parseConfigFile(
   assertPlainObject(parsedConfig, configFilePath)
   assertKnownConfigKeys(parsedConfig, configFilePath)
 
-  return parsedConfig
+  return validateConfigOverrides(parsedConfig, configFilePath)
 }
 
-function readEnvironmentOverrides(): ConfigFileData {
-  const environmentOverrides: ConfigFileData = {}
+function readEnvironmentOverrides(): SuisekiConfigOverrides {
+  const environmentOverrides: DraftSuisekiConfigOverrides = {}
 
   const pierreOverrides = readPierreEnvironmentOverrides()
   if (Object.keys(pierreOverrides).length > 0) {
@@ -236,7 +254,7 @@ function readEnvironmentOverrides(): ConfigFileData {
     environmentOverrides.shiki = shikiOverrides
   }
 
-  return environmentOverrides
+  return validateConfigOverrides(environmentOverrides, "environment")
 }
 
 function readPierreEnvironmentOverrides(): Partial<Record<PierreKey, unknown>> {
@@ -304,7 +322,7 @@ function readPierreEnvironmentOverrides(): Partial<Record<PierreKey, unknown>> {
     Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH != null &&
     Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH !== ""
   ) {
-    overrides["max-line-diff-length"] = parseEnvironmentPositiveNumber({
+    overrides["max-line-diff-length"] = parseEnvironmentPositiveInteger({
       name: "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH",
       value: Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH,
     })
@@ -327,7 +345,7 @@ function readShikiEnvironmentOverrides(): Partial<Record<ShikiKey, unknown>> {
     Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH != null &&
     Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH !== ""
   ) {
-    overrides["max-line-length"] = parseEnvironmentPositiveNumber({
+    overrides["max-line-length"] = parseEnvironmentPositiveInteger({
       name: "SUISEKI_SHIKI_MAX_LINE_LENGTH",
       value: Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH,
     })
@@ -360,19 +378,19 @@ export function parseEnvironmentBoolean({
   )
 }
 
-type ParseEnvironmentPositiveNumberParams = {
+type ParseEnvironmentPositiveIntegerParams = {
   name: string
   value: string
 }
 
-function parseEnvironmentPositiveNumber({
+function parseEnvironmentPositiveInteger({
   name,
   value,
-}: ParseEnvironmentPositiveNumberParams): number {
-  const parsedValue = Number(value)
+}: ParseEnvironmentPositiveIntegerParams): number {
+  const parsedValue = vPositiveIntegerString(value)
 
-  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
-    throw new ConfigError(`${name} must be a positive number`)
+  if (parsedValue instanceof type.errors) {
+    throw new ConfigError(`${name} ${parsedValue.summary}`)
   }
 
   return parsedValue
@@ -393,21 +411,18 @@ function validateConfig(configuration: unknown, source: string): SuisekiConfig {
     )
   }
 
-  if (
-    !Number.isFinite(validatedConfiguration.pierre["max-line-diff-length"]) ||
-    validatedConfiguration.pierre["max-line-diff-length"] <= 0
-  ) {
-    throw new ConfigError(
-      `Invalid suiseki configuration from ${source}: pierre.max-line-diff-length must be a positive number`,
-    )
-  }
+  return validatedConfiguration
+}
 
-  if (
-    !Number.isFinite(validatedConfiguration.shiki["max-line-length"]) ||
-    validatedConfiguration.shiki["max-line-length"] <= 0
-  ) {
+function validateConfigOverrides(
+  configuration: unknown,
+  source: string,
+): SuisekiConfigOverrides {
+  const validatedConfiguration = vSuisekiConfigOverrides(configuration)
+
+  if (validatedConfiguration instanceof type.errors) {
     throw new ConfigError(
-      `Invalid suiseki configuration from ${source}: shiki.max-line-length must be a positive number`,
+      `Invalid suiseki configuration from ${source}: ${validatedConfiguration.summary}`,
     )
   }
 
@@ -432,7 +447,7 @@ function assertPlainObject(
 function assertKnownConfigKeys(
   value: Record<string, unknown>,
   configFilePath: string,
-): asserts value is ConfigFileData {
+): asserts value is SuisekiConfigOverrides {
   assertKnownKeysInSet(Object.keys(value), TOP_LEVEL_KEYS, configFilePath)
 
   if (value.pierre != null) {
@@ -472,4 +487,11 @@ function assertKnownKeysInSet(
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function hasConfigOverrides(overrides: SuisekiConfigOverrides): boolean {
+  return (
+    Object.keys(overrides.pierre ?? {}).length > 0 ||
+    Object.keys(overrides.shiki ?? {}).length > 0
+  )
 }

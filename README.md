@@ -30,6 +30,9 @@ suiseki HEAD~3..HEAD -- src/
 # disable the pager
 suiseki --no-pager HEAD~1
 SUISEKI_NO_PAGER=1 git diff | suiseki
+
+# override config for one run
+suiseki --view split --theme github-light HEAD~1
 ```
 
 ### As a Git pager
@@ -84,6 +87,10 @@ max-line-diff-length = 1000  # SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH
 theme = "github-dark"        # SUISEKI_SHIKI_THEME (any bundled Shiki theme)
 max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
 ```
+
+Every config key can be overridden with a matching CLI flag, such as
+`--view split`, `--word-diff none`, `--no-line-numbers`, or
+`--max-line-length 5000`.
 
 ## Development
 

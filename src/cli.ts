@@ -1,3 +1,4 @@
+import { parseCliOptions } from "./cli-options"
 import { loadConfig, parseEnvironmentBoolean } from "./config"
 import { renderDiff } from "./render/diff"
 
@@ -13,20 +14,24 @@ class CliError extends Error {
 }
 
 async function main(): Promise<void> {
-  const cliArguments = process.argv.slice(2)
+  const parsedOptions = parseCliOptions(process.argv.slice(2))
+  if (parsedOptions.help) {
+    process.stdout.write(`${getHelpText()}\n`)
+    return
+  }
+
   const noPager =
-    cliArguments.includes("--no-pager") ||
+    parsedOptions.noPager ||
     (Bun.env.SUISEKI_NO_PAGER != null &&
       Bun.env.SUISEKI_NO_PAGER !== "" &&
       parseEnvironmentBoolean({
         name: "SUISEKI_NO_PAGER",
         value: Bun.env.SUISEKI_NO_PAGER,
       }))
-  const filteredArguments = cliArguments.filter(
-    (argument) => argument !== "--no-pager",
-  )
-  const configuration = await loadConfig()
-  const patch = await readPatchInput(filteredArguments)
+  const configuration = await loadConfig({
+    overrides: parsedOptions.overrides,
+  })
+  const patch = await readPatchInput(parsedOptions.gitArguments)
 
   if (patch.trim() === "") {
     return
@@ -45,6 +50,26 @@ async function main(): Promise<void> {
   } else {
     process.stdout.write(output)
   }
+}
+
+function getHelpText(): string {
+  return [
+    "usage: suiseki [options] [git-diff-args...]",
+    "",
+    "Options:",
+    "  --view <unified|split>",
+    "  --theme <name>",
+    "  --line-numbers / --no-line-numbers",
+    "  --change-indicator <sign|bar|background>",
+    "  --diff-background / --no-diff-background",
+    "  --file-header / --no-file-header",
+    "  --hunk-header <none|full>",
+    "  --word-diff <word|char|none>",
+    "  --max-line-diff-length <number>",
+    "  --max-line-length <number>",
+    "  --no-pager",
+    "  --color-only",
+  ].join("\n")
 }
 
 async function writeWithPager(output: string): Promise<void> {

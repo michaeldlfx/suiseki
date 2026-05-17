@@ -407,7 +407,7 @@ In rough order of value:
 - [x] **Split-view layout** — pair old/new lines using `iterateOverDiff`'s split metadata, columnize to terminal width. Handle line wrapping within columns.
 - [x] **Inline word/char diff** — `diff` npm package's `diffWordsWithSpace` / `diffChars` on changed line pairs, overlay extra ANSI highlight (brighter bg) on changed tokens.
 - [x] **Per-repo `.suiseki.toml`** — walk up from cwd to find. Merged on top of user config. The killer feature delta lacks: a monorepo can specify "split view + word-level for `apps/`, unified for `docs/`".
-- [ ] **CLI flags** — override any config key from the command line (`--view split`, `--theme catppuccin-mocha`, etc.). Use `cac` or `citty` for parsing (TS-native, light).
+- [x] **CLI flags** — override any config key from the command line (`--view split`, `--theme catppuccin-mocha`, etc.). Uses a small local parser so unknown arguments still pass through to `git diff`.
 - [ ] **Pierre terminal-surface mapping** — inventory Pierre's public diff/tree options and expose the renderer-agnostic ones through typed config keys and matching CLI flags.
 - [ ] **Pager auto-spawn** — detect non-TTY stdout, spawn `less -R --no-init` automatically. `--no-pager` to disable.
 - [ ] **Streaming for huge diffs** — switch from `parsePatchFiles` (whole-buffer) to `@pierre/diffs`'s `shiki-stream` tokenizer for diffs over N lines. Memory stays bounded.
