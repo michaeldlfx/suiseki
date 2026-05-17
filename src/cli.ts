@@ -2,6 +2,7 @@ import { stripAnsi } from "./ansi"
 import { parseCliOptions } from "./cli-options"
 import { loadConfig, parseEnvironmentBoolean } from "./config"
 import { renderDiff } from "./render/diff"
+import { runThemesCommand } from "./themes-command"
 
 class CliError extends Error {
   override name = "CliError"
@@ -15,6 +16,11 @@ class CliError extends Error {
 }
 
 async function main(): Promise<void> {
+  if (process.argv[2] === "themes") {
+    await runThemesCommand()
+    return
+  }
+
   const parsedOptions = parseCliOptions(process.argv.slice(2))
   if (parsedOptions.help) {
     process.stdout.write(`${getHelpText()}\n`)
@@ -68,6 +74,7 @@ function getHelpText(): string {
     "Usage:",
     "  git diff | suiseki",
     "  suiseki [options] [git-diff-args...]",
+    "  suiseki themes              List available themes",
     "",
     "Examples:",
     "  suiseki --staged",
