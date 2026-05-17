@@ -1,4 +1,4 @@
-import { loadConfig } from "./config"
+import { loadConfig, parseEnvironmentBoolean } from "./config"
 import { renderDiff } from "./render/diff"
 
 class CliError extends Error {
@@ -16,8 +16,12 @@ async function main(): Promise<void> {
   const cliArguments = process.argv.slice(2)
   const noPager =
     cliArguments.includes("--no-pager") ||
-    Bun.env.SUISEKI_NO_PAGER === "1" ||
-    Bun.env.SUISEKI_NO_PAGER?.toLowerCase() === "true"
+    (Bun.env.SUISEKI_NO_PAGER != null &&
+      Bun.env.SUISEKI_NO_PAGER !== "" &&
+      parseEnvironmentBoolean({
+        name: "SUISEKI_NO_PAGER",
+        value: Bun.env.SUISEKI_NO_PAGER,
+      }))
   const filteredArguments = cliArguments.filter(
     (argument) => argument !== "--no-pager",
   )
@@ -44,20 +48,28 @@ async function main(): Promise<void> {
 }
 
 async function writeWithPager(output: string): Promise<void> {
-  const pager = Bun.spawn(["less", "-R", "--no-init", "--quit-if-one-screen"], {
-    stdin: "pipe",
-    stdout: "inherit",
-    stderr: "inherit",
-  })
-
   try {
-    pager.stdin.write(output)
-    pager.stdin.end()
-  } catch {
-    // Pager exited early (e.g. user pressed q). Drop the rest silently.
-  }
+    const pager = Bun.spawn(
+      ["less", "-R", "--no-init", "--quit-if-one-screen"],
+      {
+        stdin: "pipe",
+        stdout: "inherit",
+        stderr: "inherit",
+      },
+    )
 
-  await pager.exited
+    try {
+      pager.stdin.write(output)
+      pager.stdin.end()
+    } catch {
+      // Pager exited early (e.g. user pressed q). Drop the rest silently.
+    }
+
+    await pager.exited
+  } catch {
+    // Pager not available (e.g. less not on PATH). Fall back to stdout.
+    process.stdout.write(output)
+  }
 }
 
 async function readPatchInput(argumentsFromCli: string[]): Promise<string> {

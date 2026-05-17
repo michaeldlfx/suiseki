@@ -259,7 +259,7 @@ type ParseEnvironmentBooleanParams = {
   value: string
 }
 
-function parseEnvironmentBoolean({
+export function parseEnvironmentBoolean({
   name,
   value,
 }: ParseEnvironmentBooleanParams): boolean {
