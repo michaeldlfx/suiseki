@@ -8,6 +8,7 @@ export type ThemePalette = {
   accent: string
   additionBackground: string
   deletionBackground: string
+  separatorForeground: string
   separatorBackground: string
 }
 
@@ -60,15 +61,16 @@ export function resolveThemePalette({
   const additionBackground =
     additionBgFromTheme != null
       ? compositeOver(additionBgFromTheme, background)
-      : blendColors(addition, background, 0.15)
+      : blendColors(background, addition, 0.15)
 
   const deletionBgFromTheme = colors["diffEditor.removedTextBackground"]
   const deletionBackground =
     deletionBgFromTheme != null
       ? compositeOver(deletionBgFromTheme, background)
-      : blendColors(deletion, background, 0.15)
+      : blendColors(background, deletion, 0.15)
 
-  const separatorBackground = blendColors(background, foreground, 0.08)
+  const separatorForeground = blendColors(foreground, background, 0.35)
+  const separatorBackground = blendColors(background, foreground, 0.12)
 
   return {
     foreground,
@@ -78,12 +80,23 @@ export function resolveThemePalette({
     accent,
     additionBackground,
     deletionBackground,
+    separatorForeground,
     separatorBackground,
   }
 }
 
 function parseHexToRgba(hex: string): RgbaColor | undefined {
   const normalized = hex.replace("#", "")
+
+  if (/^[0-9a-fA-F]{3}$/.test(normalized)) {
+    const [r, g, b] = normalized
+    return {
+      red: Number.parseInt(`${r}${r}`, 16),
+      green: Number.parseInt(`${g}${g}`, 16),
+      blue: Number.parseInt(`${b}${b}`, 16),
+      alpha: 1,
+    }
+  }
 
   if (/^[0-9a-fA-F]{6}$/.test(normalized)) {
     return {

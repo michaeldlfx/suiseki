@@ -397,7 +397,7 @@ function emitUnmodifiedLineCount(
 
   return emitStyledText({
     text: `${label}${" ".repeat(paddingLength)}`,
-    foregroundColor: palette.dimmed,
+    foregroundColor: palette.separatorForeground,
     backgroundColor: palette.separatorBackground,
   })
 }
