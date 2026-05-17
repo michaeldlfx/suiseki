@@ -6,9 +6,9 @@
 
 A modern terminal renderer for code, built on Pierre's parsing logic and Shiki's syntax/theme system. Phases:
 
-- [ ] **v0** — unified-view diff renderer that works locally. Couple of hours.
-- [ ] **v1** — proper `delta` alternative. Split view, inline word diff, themes, pager integration, binaries on GH Releases. Real release.
-- [ ] **v2** — expand beyond diffs to file viewing (`cat`/`bat` alternative - maybe we suggest aliasing as `sat` (s for `suiseki`, at to mirrow `cat`/`bat`)? or provide that out of the box?) and static tree printing. "Pierre's renderer, in your terminal."
+- [x] **v0** — unified-view diff renderer that works locally. Couple of hours.
+- [ ] **v1** — practical terminal diff renderer. Split view, inline word diff, themes, pager integration, binaries on GH Releases. Real release. *(features done; README polish in this file + publishing in `01-publishing-suiseki.md` outstanding)*
+- [ ] **v2** — expand beyond diffs to file viewing (`cat`/`bat` alternative — maybe we suggest aliasing as `sat` (s for `suiseki`, at to mirror `cat`/`bat`)? or provide that out of the box?) and static tree printing. "Pierre's renderer, in your terminal." *(tracked in `02-extending-suiseki.md`)*
 
 **Why this niche is open:** `delta` (Rust + syntect) uses dated Sublime grammars and a fixed theme set. `difftastic` is AST-based and barely themes. Shiki has thousands of themes and best-in-class TextMate grammar support, but no diff-aware CLI uses it. Pierre's parsing and tree logic is Apache 2.0, battle-tested, and renderer-agnostic at the module level, and Pierre already builds around Shiki for syntax and theming. `suiseki` is the friendly terminal surface for those pieces.
 
@@ -24,6 +24,8 @@ Use this file as the durable cross-session source of truth.
 - Keep the parent phase unchecked until all of its child items are implemented, verified, and committed.
 - If a plan item changes scope, update the unchecked text before implementing rather than checking an obsolete item.
 - For handoff across sessions, leave the next unchecked item obvious and avoid relying on chat history.
+- The roadmap spans three files: `00-building-suiseki.md` (this file — v0/v1 features, v1 README polish, project-wide architecture and out-of-scope), `01-publishing-suiseki.md` (v1 perf pass + release engineering: binaries, GH Releases, Homebrew, install script, npm decision), and `02-extending-suiseki.md` (v2 work — `view`, `tree`, subcommand router, v2 README update). Treat each file as the authoritative checklist for its own scope.
+- When working in `01-` or `02-`, edit those files for the in-progress checkboxes, **and** when you complete a milestone that satisfies a high-level phase bullet at the top of this file (the v0/v1/v2 list in [§ Pitch](#pitch)), come back here to check it off in the same commit. v1 stays unchecked until all v1 features, the README polish in this file, and `01-publishing-suiseki.md` are done. v2 stays unchecked until `02-extending-suiseki.md` is done.
 
 ## The name
 
@@ -95,7 +97,9 @@ suiseki/                  # local dev dir; GitHub repo is <handle>/suiseki-cli
 ├── LICENSE              # Apache 2.0
 ├── NOTICE               # credits Pierre + Shiki
 ├── plans/
-│   └── 00-building-suiseki.md
+│   ├── 00-building-suiseki.md   # this file: features, README polish, architecture
+│   ├── 01-publishing-suiseki.md # v1 perf pass + release engineering
+│   └── 02-extending-suiseki.md  # v2 work (view, tree, subcommand router)
 ├── src/
 │   ├── cli.ts           # entry — v0: linear; v1: arg parsing; v2: subcommand router
 │   ├── config.ts        # TOML loading + resolution order
