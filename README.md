@@ -59,13 +59,15 @@ render through `suiseki`. Plain `git log` keeps Git's normal pager output.
 
 ## Configuration
 
-`suiseki` reads a TOML config file from (in order of precedence):
+`suiseki` resolves configuration from (highest precedence first):
 
-1. `$SUISEKI_CONFIG_DIR/config.toml`
-2. `$XDG_CONFIG_HOME/suiseki/config.toml` (defaults to `~/.config/suiseki/config.toml`)
-3. `~/.suiseki/config.toml`
+1. Environment variables
+2. Nearest `.suiseki.toml` found by walking up from the current directory
+3. `$SUISEKI_CONFIG_DIR/config.toml`
+4. `$XDG_CONFIG_HOME/suiseki/config.toml` (defaults to `~/.config/suiseki/config.toml`)
+5. `~/.suiseki/config.toml`
 
-All settings can also be overridden via environment variables.
+Per-repo `.suiseki.toml` files are read-only and merge on top of user config.
 
 ```toml
 [pierre]

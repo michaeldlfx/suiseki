@@ -1,5 +1,5 @@
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { type } from "arktype"
 import { type BundledTheme, bundledThemes } from "shiki"
 import { parse } from "smol-toml"
@@ -82,27 +82,46 @@ type LoadedConfigFile = {
   path: string
 }
 
-export async function loadConfig(): Promise<SuisekiConfig> {
-  const loadedConfigFile = await loadFirstConfigFile()
-  const fileConfiguration = loadedConfigFile?.configuration ?? {}
+type LoadConfigParams = {
+  currentWorkingDirectory?: string
+}
+
+export async function loadConfig({
+  currentWorkingDirectory = process.cwd(),
+}: LoadConfigParams = {}): Promise<SuisekiConfig> {
+  const loadedUserConfigFile = await loadFirstUserConfigFile()
+  const loadedRepositoryConfigFile = await loadRepositoryConfigFile({
+    currentWorkingDirectory,
+  })
+  const userConfiguration = loadedUserConfigFile?.configuration ?? {}
+  const repositoryConfiguration =
+    loadedRepositoryConfigFile?.configuration ?? {}
   const environmentOverrides = readEnvironmentOverrides()
 
   const mergedConfiguration = {
     pierre: {
       ...DEFAULT_CONFIG.pierre,
-      ...(fileConfiguration.pierre ?? {}),
+      ...(userConfiguration.pierre ?? {}),
+      ...(repositoryConfiguration.pierre ?? {}),
       ...(environmentOverrides.pierre ?? {}),
     },
     shiki: {
       ...DEFAULT_CONFIG.shiki,
-      ...(fileConfiguration.shiki ?? {}),
+      ...(userConfiguration.shiki ?? {}),
+      ...(repositoryConfiguration.shiki ?? {}),
       ...(environmentOverrides.shiki ?? {}),
     },
   }
+  const configurationSources = [
+    loadedUserConfigFile?.path,
+    loadedRepositoryConfigFile?.path,
+  ].filter((source) => source != null)
 
   return validateConfig(
     mergedConfiguration,
-    loadedConfigFile?.path ?? "defaults",
+    configurationSources.length > 0
+      ? configurationSources.join(", ")
+      : "defaults",
   )
 }
 
@@ -126,7 +145,9 @@ function getConfigFileCandidates(): string[] {
   return configFileCandidates
 }
 
-async function loadFirstConfigFile(): Promise<LoadedConfigFile | undefined> {
+async function loadFirstUserConfigFile(): Promise<
+  LoadedConfigFile | undefined
+> {
   for (const configFilePath of getConfigFileCandidates()) {
     const configFile = Bun.file(configFilePath)
     if (await configFile.exists()) {
@@ -139,6 +160,47 @@ async function loadFirstConfigFile(): Promise<LoadedConfigFile | undefined> {
   }
 
   return undefined
+}
+
+type LoadRepositoryConfigFileParams = {
+  currentWorkingDirectory: string
+}
+
+async function loadRepositoryConfigFile({
+  currentWorkingDirectory,
+}: LoadRepositoryConfigFileParams): Promise<LoadedConfigFile | undefined> {
+  for (const configFilePath of getRepositoryConfigFileCandidates(
+    currentWorkingDirectory,
+  )) {
+    const configFile = Bun.file(configFilePath)
+    if (await configFile.exists()) {
+      const fileText = await configFile.text()
+      return {
+        configuration: parseConfigFile(fileText, configFilePath),
+        path: configFilePath,
+      }
+    }
+  }
+
+  return undefined
+}
+
+function getRepositoryConfigFileCandidates(
+  currentWorkingDirectory: string,
+): string[] {
+  const configFileCandidates: string[] = []
+  let directory = resolve(currentWorkingDirectory)
+
+  while (true) {
+    configFileCandidates.push(join(directory, ".suiseki.toml"))
+
+    const parentDirectory = dirname(directory)
+    if (parentDirectory === directory) {
+      return configFileCandidates
+    }
+
+    directory = parentDirectory
+  }
 }
 
 function parseConfigFile(

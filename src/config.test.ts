@@ -108,6 +108,66 @@ describe("config.ts", () => {
       )
     })
 
+    test("merges per-repo config above user config", async () => {
+      const repositoryDirectory = join(temporaryHomeDirectory, "repo")
+      const nestedDirectory = join(repositoryDirectory, "packages", "cli")
+      await mkdir(explicitConfigDirectory, { recursive: true })
+      await mkdir(nestedDirectory, { recursive: true })
+      await writeFile(
+        join(explicitConfigDirectory, "config.toml"),
+        [
+          "[pierre]",
+          'view = "unified"',
+          "line-numbers = false",
+          "",
+          "[shiki]",
+          'theme = "github-light"',
+        ].join("\n"),
+      )
+      await writeFile(
+        join(repositoryDirectory, ".suiseki.toml"),
+        [
+          "[pierre]",
+          'view = "split"',
+          'word-diff = "none"',
+          "",
+          "[shiki]",
+          "max-line-length = 700",
+        ].join("\n"),
+      )
+
+      const loadedConfig = await loadConfig({
+        currentWorkingDirectory: nestedDirectory,
+      })
+
+      expect(loadedConfig.pierre.view).toEqual("split")
+      expect(loadedConfig.pierre["line-numbers"]).toEqual(false)
+      expect(loadedConfig.pierre["word-diff"]).toEqual("none")
+      expect(loadedConfig.shiki.theme).toEqual("github-light")
+      expect(loadedConfig.shiki["max-line-length"]).toEqual(700)
+    })
+
+    test("uses nearest per-repo config when walking up from cwd", async () => {
+      const repositoryDirectory = join(temporaryHomeDirectory, "repo")
+      const packageDirectory = join(repositoryDirectory, "packages", "cli")
+      const nestedDirectory = join(packageDirectory, "src")
+      await mkdir(nestedDirectory, { recursive: true })
+      await writeFile(
+        join(repositoryDirectory, ".suiseki.toml"),
+        ["[pierre]", 'word-diff = "none"'].join("\n"),
+      )
+      await writeFile(
+        join(packageDirectory, ".suiseki.toml"),
+        ["[pierre]", 'word-diff = "char"'].join("\n"),
+      )
+
+      const loadedConfig = await loadConfig({
+        currentWorkingDirectory: nestedDirectory,
+      })
+
+      expect(loadedConfig.pierre["word-diff"]).toEqual("char")
+    })
+
     test("applies pierre environment overrides above config file", async () => {
       await mkdir(explicitConfigDirectory, { recursive: true })
       await writeFile(
@@ -127,6 +187,22 @@ describe("config.ts", () => {
       expect(loadedConfig.pierre["change-indicator"]).toEqual("sign")
       expect(loadedConfig.pierre["word-diff"]).toEqual("none")
       expect(loadedConfig.pierre["max-line-diff-length"]).toEqual(400)
+    })
+
+    test("applies environment overrides above per-repo config", async () => {
+      const repositoryDirectory = join(temporaryHomeDirectory, "repo")
+      await mkdir(repositoryDirectory, { recursive: true })
+      await writeFile(
+        join(repositoryDirectory, ".suiseki.toml"),
+        ["[pierre]", 'view = "split"'].join("\n"),
+      )
+      Bun.env.SUISEKI_PIERRE_VIEW = "unified"
+
+      const loadedConfig = await loadConfig({
+        currentWorkingDirectory: repositoryDirectory,
+      })
+
+      expect(loadedConfig.pierre.view).toEqual("unified")
     })
 
     test("applies shiki environment overrides above config file", async () => {
