@@ -405,9 +405,9 @@ In rough order of value:
 - [x] **Inline word/char diff** — `diff` npm package's `diffWordsWithSpace` / `diffChars` on changed line pairs, overlay extra ANSI highlight (brighter bg) on changed tokens.
 - [x] **Per-repo `.suiseki.toml`** — walk up from cwd to find. Merged on top of user config. The killer feature delta lacks: a monorepo can specify "split view + word-level for `apps/`, unified for `docs/`".
 - [x] **CLI flags** — override any config key from the command line (`--view split`, `--theme catppuccin-mocha`, etc.). Uses a small local parser so unknown arguments still pass through to `git diff`.
-- [ ] **Default usage on empty invocation** — when `suiseki` runs with no stdin and no git diff arguments, print concise usage/setup guidance instead of silently exiting on an empty working tree.
+- [x] **Default usage on empty invocation** — when `suiseki` runs with no stdin and no git diff arguments, print concise usage/setup guidance instead of silently exiting on an empty working tree.
 - [x] **Pierre terminal-surface mapping** — inventory Pierre's public diff/tree options and expose terminal-relevant, renderer-agnostic diff options through typed config keys and matching CLI flags. Tree options stay v2-only until `@pierre/trees` is added.
-- [ ] **Pager auto-spawn** — detect non-TTY stdout, spawn `less -R --no-init` automatically. `--no-pager` to disable.
+- [x] **Pager auto-spawn** — when stdout is a TTY, spawn `less -R --no-init --quit-if-one-screen`. `--no-pager` flag or `SUISEKI_NO_PAGER=1` env to disable. (Landed in v0 polish.)
 - [ ] **Streaming for huge diffs** — switch from `parsePatchFiles` (whole-buffer) to `@pierre/diffs`'s `shiki-stream` tokenizer for diffs over N lines. Memory stays bounded.
 - [ ] **Git integration docs** in README:
    ```bash
@@ -427,8 +427,12 @@ In rough order of value:
 - [ ] **Custom theme loading** — read `~/.suiseki/themes/*.json` as Shiki themes, name resolved from filename.
 - [ ] **Pierre theme pack** — bundle `@pierre/theme`'s Shiki themes (`pierre-dark`, `pierre-light`) as built-ins.
 - [ ] **Merge conflict rendering** — use `parseMergeConflictDiffFromFile` from Pierre. 1208 lines of edge-case handling delta doesn't have. Differentiator.
-- [ ] **`--no-color` / `NO_COLOR` env support** — standard hygiene.
-- [ ] **Tests** — fixtures for split view, inline diff, merge conflicts, large patches.
+- [x] **`--no-color` / `NO_COLOR` env support** — standard hygiene. `--no-color` flag plus `NO_COLOR` env var (any non-empty value) strip ANSI from rendered output.
+- **Tests** — fixtures for:
+  - [x] split view
+  - [x] inline word/char diff
+  - [ ] merge conflicts (blocked on merge-conflict rendering)
+  - [ ] large patches (blocked on streaming)
 
 ### Publishing
 
