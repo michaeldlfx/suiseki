@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "bun run src/cli.ts",
-    "build": "mkdir -p bin && bun build src/cli.ts --compile --outfile bin/suiseki",
+    "build": "bun build src/cli.ts --compile --outfile bin/suiseki",
     "start": "./bin/suiseki",
     "clean": "rm -rf bin dist",
     "test": "bun test --pass-with-no-tests",
