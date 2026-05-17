@@ -424,7 +424,7 @@ In rough order of value:
     view = split
     theme = github-dark
   ```
-- [ ] **Custom theme loading** — read `~/.suiseki/themes/*.json` as Shiki themes, name resolved from filename.
+- [x] **Custom theme loading** — read `~/.suiseki/themes/*.json` (also `$SUISEKI_CONFIG_DIR/themes/` and `$XDG_CONFIG_HOME/suiseki/themes/`) as Shiki themes, name resolved from filename. Each file is parsed with `string.json.parse` then validated against `vCustomTheme` (Arktype) before being registered with the highlighter. Invalid files are skipped with a stderr warning.
 - [x] **Pierre theme pack** — bundle `@pierre/theme`'s Shiki themes as built-ins. All four variants available: `pierre-dark`, `pierre-light`, `pierre-dark-vibrant`, `pierre-light-vibrant`. Registered with the Shiki highlighter at init.
 - [ ] **Merge conflict rendering** — use `parseMergeConflictDiffFromFile` from Pierre. 1208 lines of edge-case handling delta doesn't have. Differentiator.
 - [x] **`--no-color` / `NO_COLOR` env support** — standard hygiene. `--no-color` flag plus `NO_COLOR` env var (any non-empty value) strip ANSI from rendered output.
