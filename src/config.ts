@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path"
 import { type } from "arktype"
 import { type BundledTheme, bundledThemes } from "shiki"
 import { parse } from "smol-toml"
+import { type CustomThemes, loadCustomThemes } from "./custom-themes"
 import { isPierreThemeName } from "./pierre-themes"
 
 const vPositiveInteger = type("number.integer > 0")
@@ -62,7 +63,9 @@ const TOP_LEVEL_KEYS = ["pierre", "shiki"] as const
 const PIERRE_KEYS = Object.keys(PIERRE_CONFIG_FIELDS)
 const SHIKI_KEYS = Object.keys(SHIKI_CONFIG_FIELDS)
 
-export type SuisekiConfig = typeof vSuisekiConfig.infer
+export type SuisekiConfig = typeof vSuisekiConfig.infer & {
+  customThemes: CustomThemes
+}
 export type SuisekiConfigOverrides = typeof vSuisekiConfigOverrides.infer
 
 type DraftSuisekiConfigOverrides = {
@@ -85,6 +88,7 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
     theme: "github-dark",
     "max-line-length": 10000,
   },
+  customThemes: {},
 }
 
 export class ConfigError extends Error {
@@ -136,12 +140,16 @@ export async function loadConfig({
     hasConfigOverrides(overrides) ? "CLI overrides" : undefined,
   ].filter((source) => source != null)
 
-  return validateConfig(
-    mergedConfiguration,
-    configurationSources.length > 0
-      ? configurationSources.join(", ")
-      : "defaults",
-  )
+  const customThemes = await loadCustomThemes()
+
+  return validateConfig({
+    configuration: mergedConfiguration,
+    customThemes,
+    source:
+      configurationSources.length > 0
+        ? configurationSources.join(", ")
+        : "defaults",
+  })
 }
 
 function getConfigFileCandidates(): string[] {
@@ -397,7 +405,17 @@ function parseEnvironmentPositiveInteger({
   return parsedValue
 }
 
-function validateConfig(configuration: unknown, source: string): SuisekiConfig {
+type ValidateConfigParams = {
+  configuration: unknown
+  customThemes: CustomThemes
+  source: string
+}
+
+function validateConfig({
+  configuration,
+  customThemes,
+  source,
+}: ValidateConfigParams): SuisekiConfig {
   const validatedConfiguration = vSuisekiConfig(configuration)
 
   if (validatedConfiguration instanceof type.errors) {
@@ -406,13 +424,18 @@ function validateConfig(configuration: unknown, source: string): SuisekiConfig {
     )
   }
 
-  if (!isSupportedThemeName(validatedConfiguration.shiki.theme)) {
+  if (
+    !isSupportedThemeName({
+      themeName: validatedConfiguration.shiki.theme,
+      customThemes,
+    })
+  ) {
     throw new ConfigError(
-      `Invalid suiseki configuration from ${source}: shiki.theme must be a bundled Shiki theme or a Pierre theme name`,
+      `Invalid suiseki configuration from ${source}: shiki.theme must be a bundled Shiki theme, a Pierre theme, or a custom theme loaded from ~/.suiseki/themes/`,
     )
   }
 
-  return validatedConfiguration
+  return { ...validatedConfiguration, customThemes }
 }
 
 function validateConfigOverrides(
@@ -436,8 +459,20 @@ export function isBundledThemeName(
   return Object.hasOwn(bundledThemes, themeName)
 }
 
-export function isSupportedThemeName(themeName: string): boolean {
-  return isBundledThemeName(themeName) || isPierreThemeName(themeName)
+type IsSupportedThemeNameParams = {
+  customThemes: CustomThemes
+  themeName: string
+}
+
+export function isSupportedThemeName({
+  customThemes,
+  themeName,
+}: IsSupportedThemeNameParams): boolean {
+  return (
+    isBundledThemeName(themeName) ||
+    isPierreThemeName(themeName) ||
+    Object.hasOwn(customThemes, themeName)
+  )
 }
 
 function assertPlainObject(

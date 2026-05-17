@@ -24,6 +24,7 @@ import {
   stripAnsi,
 } from "../ansi"
 import { isBundledThemeName, type SuisekiConfig } from "../config"
+import type { CustomThemes } from "../custom-themes"
 import { type ChangeMarker, renderGutter } from "../gutter"
 import { isPierreThemeName, PIERRE_THEMES } from "../pierre-themes"
 import { resolveThemePalette, type ThemePalette } from "../theme-palette"
@@ -164,7 +165,10 @@ export async function renderDiff(
 ): Promise<string> {
   // parsePatchFiles(source, fileFilter, parsePatchMetadata)
   const patches = parsePatchFiles(stripAnsi(patch), undefined, true)
-  const themeInput = resolveTheme(configuration.shiki.theme)
+  const themeInput = resolveTheme({
+    customThemes: configuration.customThemes,
+    themeName: configuration.shiki.theme,
+  })
   const themeName =
     typeof themeInput === "string" ? themeInput : themeInput.name
   if (themeName == null) {
@@ -982,13 +986,26 @@ function isBundledLanguageName(
   return Object.hasOwn(bundledLanguages, languageName)
 }
 
-function resolveTheme(themeName: string): BundledTheme | ThemeRegistrationRaw {
+type ResolveThemeParams = {
+  customThemes: CustomThemes
+  themeName: string
+}
+
+function resolveTheme({
+  customThemes,
+  themeName,
+}: ResolveThemeParams): BundledTheme | ThemeRegistrationRaw {
   if (isBundledThemeName(themeName)) {
     return themeName
   }
 
   if (isPierreThemeName(themeName)) {
     return PIERRE_THEMES[themeName]
+  }
+
+  const customTheme = customThemes[themeName]
+  if (customTheme != null) {
+    return customTheme
   }
 
   throw new Error(`Unknown theme: ${themeName}`)
