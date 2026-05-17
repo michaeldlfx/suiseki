@@ -3,7 +3,10 @@ import { emitStyledText } from "./ansi"
 export type ChangeSign = "+" | "-" | " "
 
 type RenderGutterParams = {
+  additionSignColor: string
   backgroundColor?: string
+  deletionSignColor: string
+  gutterForegroundColor: string
   lineNumber?: number
   lineNumberWidth: number
   lineNumbers: boolean
@@ -15,12 +18,11 @@ type RenderedGutter = {
   visibleLength: number
 }
 
-const GUTTER_FOREGROUND_COLOR = "#8b949e"
-const ADDITION_SIGN_COLOR = "#3fb950"
-const DELETION_SIGN_COLOR = "#f85149"
-
 export function renderGutter({
+  additionSignColor,
   backgroundColor,
+  deletionSignColor,
+  gutterForegroundColor,
   lineNumber,
   lineNumberWidth,
   lineNumbers,
@@ -31,17 +33,24 @@ export function renderGutter({
       ? " ".repeat(lineNumberWidth)
       : String(lineNumber).padStart(lineNumberWidth, " ")
 
+  const signColor = getSignColor({
+    additionSignColor,
+    deletionSignColor,
+    gutterForegroundColor,
+    sign,
+  })
+
   if (!lineNumbers) {
     return {
       text:
         emitStyledText({
           text: sign,
-          foregroundColor: getSignColor(sign),
+          foregroundColor: signColor,
           backgroundColor,
         }) +
         emitStyledText({
           text: "  ",
-          foregroundColor: GUTTER_FOREGROUND_COLOR,
+          foregroundColor: gutterForegroundColor,
           backgroundColor,
         }),
       visibleLength: 3,
@@ -52,31 +61,43 @@ export function renderGutter({
     text:
       emitStyledText({
         text: ` ${lineNumberText} `,
-        foregroundColor: GUTTER_FOREGROUND_COLOR,
+        foregroundColor: gutterForegroundColor,
         backgroundColor,
       }) +
       emitStyledText({
         text: sign,
-        foregroundColor: getSignColor(sign),
+        foregroundColor: signColor,
         backgroundColor,
       }) +
       emitStyledText({
         text: "  ",
-        foregroundColor: GUTTER_FOREGROUND_COLOR,
+        foregroundColor: gutterForegroundColor,
         backgroundColor,
       }),
     visibleLength: lineNumberWidth + 5,
   }
 }
 
-function getSignColor(sign: ChangeSign): string {
+type GetSignColorParams = {
+  additionSignColor: string
+  deletionSignColor: string
+  gutterForegroundColor: string
+  sign: ChangeSign
+}
+
+function getSignColor({
+  additionSignColor,
+  deletionSignColor,
+  gutterForegroundColor,
+  sign,
+}: GetSignColorParams): string {
   if (sign === "+") {
-    return ADDITION_SIGN_COLOR
+    return additionSignColor
   }
 
   if (sign === "-") {
-    return DELETION_SIGN_COLOR
+    return deletionSignColor
   }
 
-  return GUTTER_FOREGROUND_COLOR
+  return gutterForegroundColor
 }

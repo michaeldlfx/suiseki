@@ -22,17 +22,13 @@ import {
 } from "../ansi"
 import { isBundledThemeName, type SuisekiConfig } from "../config"
 import { type ChangeSign, renderGutter } from "../gutter"
+import { resolveThemePalette, type ThemePalette } from "../theme-palette"
 import {
   type DiffLineCallbackProps,
   iterateOverDiff,
 } from "../vendor/pierre/iterate-over-diff"
 
 const DEFAULT_TERMINAL_WIDTH = 100
-
-const DIFF_BACKGROUND_COLORS = {
-  addition: "#0e2e0e",
-  deletion: "#2e0e0e",
-}
 
 type DiffLineKind = "addition" | "context" | "deletion"
 
@@ -49,6 +45,7 @@ type RenderUnifiedDiffLineParams = {
   language: RenderLanguage
   line: UnifiedDiffLine
   lineNumberWidth: number
+  palette: ThemePalette
   terminalWidth: number
   theme: BundledTheme
 }
@@ -65,12 +62,13 @@ export async function renderDiff(
     themes: [theme],
     langs: ["plaintext"],
   })
+  const palette = resolveThemePalette({ highlighter, theme })
   const outputLines: string[] = []
 
   let fileIndex = 0
 
   for (const parsedPatch of patches) {
-    outputLines.push(...renderPatchMetadata(parsedPatch.patchMetadata))
+    outputLines.push(...renderPatchMetadata(parsedPatch.patchMetadata, palette))
 
     for (const file of parsedPatch.files) {
       if (fileIndex > 0) {
@@ -91,13 +89,17 @@ export async function renderDiff(
           if (line.hunk != null && !emittedHunkIndexes.has(line.hunkIndex)) {
             emittedHunkIndexes.add(line.hunkIndex)
             if (configuration.pierre["hunk-header"] === "full") {
-              fileLines.push(emitHunkHeader(line.hunk))
+              fileLines.push(emitHunkHeader(line.hunk, palette))
             }
           }
 
           if (line.collapsedBefore > 0) {
             fileLines.push(
-              emitUnmodifiedLineCount(line.collapsedBefore, getTerminalWidth()),
+              emitUnmodifiedLineCount(
+                line.collapsedBefore,
+                getTerminalWidth(),
+                palette,
+              ),
             )
           }
 
@@ -113,6 +115,7 @@ export async function renderDiff(
               language,
               line: unifiedLine,
               lineNumberWidth,
+              palette,
               terminalWidth: getTerminalWidth(),
               theme,
             }),
@@ -123,13 +126,18 @@ export async function renderDiff(
               emitNoNewlineMarker({
                 configuration,
                 lineNumberWidth,
+                palette,
               }),
             )
           }
 
           if (line.collapsedAfter > 0) {
             fileLines.push(
-              emitUnmodifiedLineCount(line.collapsedAfter, getTerminalWidth()),
+              emitUnmodifiedLineCount(
+                line.collapsedAfter,
+                getTerminalWidth(),
+                palette,
+              ),
             )
           }
 
@@ -143,6 +151,7 @@ export async function renderDiff(
             file,
             additionCount,
             deletionCount,
+            palette,
             terminalWidth: getTerminalWidth(),
           }),
         )
@@ -161,16 +170,20 @@ function renderUnifiedDiffLine({
   language,
   line,
   lineNumberWidth,
+  palette,
   terminalWidth,
   theme,
 }: RenderUnifiedDiffLineParams): string {
   const backgroundColor = configuration.pierre["diff-background"]
-    ? getBackgroundColor(line.kind)
+    ? getBackgroundColor(line.kind, palette)
     : undefined
   const sign = getChangeSign(line.kind)
   const normalizedContent = stripLineEnding(line.content)
   const gutter = renderGutter({
+    additionSignColor: palette.addition,
     backgroundColor,
+    deletionSignColor: palette.deletion,
+    gutterForegroundColor: palette.dimmed,
     lineNumber: line.lineNumber,
     lineNumberWidth,
     lineNumbers: configuration.pierre["line-numbers"],
@@ -301,7 +314,10 @@ function resolveTheme(themeName: string): BundledTheme {
   throw new Error(`Unknown Shiki theme: ${themeName}`)
 }
 
-function renderPatchMetadata(patchMetadata: string | undefined): string[] {
+function renderPatchMetadata(
+  patchMetadata: string | undefined,
+  palette: ThemePalette,
+): string[] {
   if (patchMetadata == null || patchMetadata.trim() === "") {
     return []
   }
@@ -312,17 +328,16 @@ function renderPatchMetadata(patchMetadata: string | undefined): string[] {
     .map((line) =>
       emitStyledText({
         text: line,
-        foregroundColor: "#8b949e",
+        foregroundColor: palette.dimmed,
       }),
     )
 }
-
-const SEPARATOR_BACKGROUND_COLOR = "#1c2128"
 
 type EmitFileHeaderParams = {
   file: FileDiffMetadata
   additionCount: number
   deletionCount: number
+  palette: ThemePalette
   terminalWidth: number
 }
 
@@ -330,6 +345,7 @@ function emitFileHeader({
   file,
   additionCount,
   deletionCount,
+  palette,
   terminalWidth,
 }: EmitFileHeaderParams): string {
   const statusIcon = getFileStatusIcon(file.type)
@@ -343,34 +359,35 @@ function emitFileHeader({
 
   const statusIconRendered = emitStyledText({
     text: statusIcon,
-    foregroundColor: getFileStatusColor(file.type),
+    foregroundColor: getFileStatusColor(file.type, palette),
   })
-  const fileNameRendered = renderFormattedFileName(file)
+  const fileNameRendered = renderFormattedFileName(file, palette)
   const padding = emitStyledText({
     text: " ".repeat(paddingLength),
   })
   const deletionSummary = emitStyledText({
     text: `-${deletionCount}`,
-    foregroundColor: "#f85149",
+    foregroundColor: palette.deletion,
   })
   const additionSummary = emitStyledText({
     text: `+${additionCount}`,
-    foregroundColor: "#3fb950",
+    foregroundColor: palette.addition,
   })
 
   return `${statusIconRendered} ${fileNameRendered}${padding}${deletionSummary} ${additionSummary}`
 }
 
-function emitHunkHeader(hunk: Hunk): string {
+function emitHunkHeader(hunk: Hunk, palette: ThemePalette): string {
   return emitStyledText({
     text: stripLineEnding(hunk.hunkSpecs ?? "@@"),
-    foregroundColor: "#d2a8ff",
+    foregroundColor: palette.accent,
   })
 }
 
 function emitUnmodifiedLineCount(
   unmodifiedLineCount: number,
   terminalWidth: number,
+  palette: ThemePalette,
 ): string {
   const label =
     unmodifiedLineCount === 1
@@ -380,21 +397,26 @@ function emitUnmodifiedLineCount(
 
   return emitStyledText({
     text: `${label}${" ".repeat(paddingLength)}`,
-    foregroundColor: "#8b949e",
-    backgroundColor: SEPARATOR_BACKGROUND_COLOR,
+    foregroundColor: palette.dimmed,
+    backgroundColor: palette.separatorBackground,
   })
 }
 
 type EmitNoNewlineMarkerParams = {
   configuration: SuisekiConfig
   lineNumberWidth: number
+  palette: ThemePalette
 }
 
 function emitNoNewlineMarker({
   configuration,
   lineNumberWidth,
+  palette,
 }: EmitNoNewlineMarkerParams): string {
   const gutter = renderGutter({
+    additionSignColor: palette.addition,
+    deletionSignColor: palette.deletion,
+    gutterForegroundColor: palette.dimmed,
     lineNumberWidth,
     lineNumbers: configuration.pierre["line-numbers"],
     sign: " ",
@@ -402,7 +424,7 @@ function emitNoNewlineMarker({
 
   return `${gutter.text}${emitStyledText({
     text: "\\ No newline at end of file",
-    foregroundColor: "#8b949e",
+    foregroundColor: palette.dimmed,
   })}${RESET}`
 }
 
@@ -419,44 +441,53 @@ function splitPath(filePath: string): { directory: string; fileName: string } {
   }
 }
 
-function renderFormattedFileName(file: FileDiffMetadata): string {
+function renderFormattedFileName(
+  file: FileDiffMetadata,
+  palette: ThemePalette,
+): string {
   if (file.prevName != null && file.prevName !== file.name) {
     const prev = splitPath(file.prevName)
     const curr = splitPath(file.name)
 
     const prevRendered =
       (prev.directory !== ""
-        ? emitStyledText({ text: prev.directory, foregroundColor: "#8b949e" })
+        ? emitStyledText({
+            text: prev.directory,
+            foregroundColor: palette.dimmed,
+          })
         : "") +
       emitStyledText({
         text: prev.fileName,
-        foregroundColor: "#e1e4e8",
+        foregroundColor: palette.foreground,
         bold: true,
       })
 
     const currRendered =
       (curr.directory !== ""
-        ? emitStyledText({ text: curr.directory, foregroundColor: "#8b949e" })
+        ? emitStyledText({
+            text: curr.directory,
+            foregroundColor: palette.dimmed,
+          })
         : "") +
       emitStyledText({
         text: curr.fileName,
-        foregroundColor: "#e1e4e8",
+        foregroundColor: palette.foreground,
         bold: true,
       })
 
-    return `${prevRendered} ${emitStyledText({ text: "→", foregroundColor: "#8b949e" })} ${currRendered}`
+    return `${prevRendered} ${emitStyledText({ text: "→", foregroundColor: palette.dimmed })} ${currRendered}`
   }
 
   const { directory, fileName } = splitPath(file.name)
 
   const directoryRendered =
     directory !== ""
-      ? emitStyledText({ text: directory, foregroundColor: "#8b949e" })
+      ? emitStyledText({ text: directory, foregroundColor: palette.dimmed })
       : ""
 
   const fileNameRendered = emitStyledText({
     text: fileName,
-    foregroundColor: "#e1e4e8",
+    foregroundColor: palette.foreground,
     bold: true,
   })
 
@@ -485,17 +516,20 @@ function getFileStatusIcon(changeType: ChangeTypes): string {
   }
 }
 
-function getFileStatusColor(changeType: ChangeTypes): string {
+function getFileStatusColor(
+  changeType: ChangeTypes,
+  palette: ThemePalette,
+): string {
   switch (changeType) {
     case "change":
-      return "#e1e4e8"
+      return palette.foreground
     case "new":
-      return "#3fb950"
+      return palette.addition
     case "deleted":
-      return "#f85149"
+      return palette.deletion
     case "rename-pure":
     case "rename-changed":
-      return "#d2a8ff"
+      return palette.accent
   }
 }
 
@@ -517,13 +551,16 @@ function getLineNumberWidth(file: FileDiffMetadata): number {
   return Math.max(String(maxLineNumber).length, 1)
 }
 
-function getBackgroundColor(kind: DiffLineKind): string | undefined {
+function getBackgroundColor(
+  kind: DiffLineKind,
+  palette: ThemePalette,
+): string | undefined {
   if (kind === "addition") {
-    return DIFF_BACKGROUND_COLORS.addition
+    return palette.additionBackground
   }
 
   if (kind === "deletion") {
-    return DIFF_BACKGROUND_COLORS.deletion
+    return palette.deletionBackground
   }
 
   return undefined
