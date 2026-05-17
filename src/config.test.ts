@@ -14,7 +14,9 @@ const ENVIRONMENT_KEYS = [
   "SUISEKI_PIERRE_FILE_HEADER",
   "SUISEKI_PIERRE_HUNK_HEADER",
   "SUISEKI_PIERRE_LINE_NUMBERS",
+  "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH",
   "SUISEKI_PIERRE_VIEW",
+  "SUISEKI_PIERRE_WORD_DIFF",
   "SUISEKI_SHIKI_MAX_LINE_LENGTH",
   "SUISEKI_SHIKI_THEME",
   "XDG_CONFIG_HOME",
@@ -55,12 +57,14 @@ describe("config.ts", () => {
         join(explicitConfigDirectory, "config.toml"),
         [
           "[pierre]",
-          'view = "unified"',
+          'view = "split"',
           "line-numbers = false",
           'change-indicator = "bar"',
           "diff-background = false",
           "file-header = false",
           'hunk-header = "none"',
+          'word-diff = "word-alt"',
+          "max-line-diff-length = 250",
           "",
           "[shiki]",
           'theme = "github-light"',
@@ -72,18 +76,36 @@ describe("config.ts", () => {
 
       expect(loadedConfig).toEqual({
         pierre: {
-          view: "unified",
+          view: "split",
           "line-numbers": false,
           "change-indicator": "bar",
           "diff-background": false,
           "file-header": false,
           "hunk-header": "none",
+          "word-diff": "word-alt",
+          "max-line-diff-length": 250,
         },
         shiki: {
           theme: "github-light",
           "max-line-length": 5000,
         },
+        customThemes: {},
       })
+    })
+
+    test("loads config from ~/.suiseki/config.toml when HOME is overridden", async () => {
+      const homeSuisekiDirectory = join(temporaryHomeDirectory, ".suiseki")
+      await mkdir(homeSuisekiDirectory, { recursive: true })
+      await writeFile(
+        join(homeSuisekiDirectory, "config.toml"),
+        ["[shiki]", 'theme = "github-light"'].join("\n"),
+      )
+      Bun.env.SUISEKI_CONFIG_DIR = undefined
+      Bun.env.XDG_CONFIG_HOME = undefined
+
+      const loadedConfig = await loadConfig()
+
+      expect(loadedConfig.shiki.theme).toEqual("github-light")
     })
 
     test("merges partial config with defaults", async () => {
@@ -102,6 +124,66 @@ describe("config.ts", () => {
       )
     })
 
+    test("merges per-repo config above user config", async () => {
+      const repositoryDirectory = join(temporaryHomeDirectory, "repo")
+      const nestedDirectory = join(repositoryDirectory, "packages", "cli")
+      await mkdir(explicitConfigDirectory, { recursive: true })
+      await mkdir(nestedDirectory, { recursive: true })
+      await writeFile(
+        join(explicitConfigDirectory, "config.toml"),
+        [
+          "[pierre]",
+          'view = "unified"',
+          "line-numbers = false",
+          "",
+          "[shiki]",
+          'theme = "github-light"',
+        ].join("\n"),
+      )
+      await writeFile(
+        join(repositoryDirectory, ".suiseki.toml"),
+        [
+          "[pierre]",
+          'view = "split"',
+          'word-diff = "none"',
+          "",
+          "[shiki]",
+          "max-line-length = 700",
+        ].join("\n"),
+      )
+
+      const loadedConfig = await loadConfig({
+        currentWorkingDirectory: nestedDirectory,
+      })
+
+      expect(loadedConfig.pierre.view).toEqual("split")
+      expect(loadedConfig.pierre["line-numbers"]).toEqual(false)
+      expect(loadedConfig.pierre["word-diff"]).toEqual("none")
+      expect(loadedConfig.shiki.theme).toEqual("github-light")
+      expect(loadedConfig.shiki["max-line-length"]).toEqual(700)
+    })
+
+    test("uses nearest per-repo config when walking up from cwd", async () => {
+      const repositoryDirectory = join(temporaryHomeDirectory, "repo")
+      const packageDirectory = join(repositoryDirectory, "packages", "cli")
+      const nestedDirectory = join(packageDirectory, "src")
+      await mkdir(nestedDirectory, { recursive: true })
+      await writeFile(
+        join(repositoryDirectory, ".suiseki.toml"),
+        ["[pierre]", 'word-diff = "none"'].join("\n"),
+      )
+      await writeFile(
+        join(packageDirectory, ".suiseki.toml"),
+        ["[pierre]", 'word-diff = "char"'].join("\n"),
+      )
+
+      const loadedConfig = await loadConfig({
+        currentWorkingDirectory: nestedDirectory,
+      })
+
+      expect(loadedConfig.pierre["word-diff"]).toEqual("char")
+    })
+
     test("applies pierre environment overrides above config file", async () => {
       await mkdir(explicitConfigDirectory, { recursive: true })
       await writeFile(
@@ -112,11 +194,45 @@ describe("config.ts", () => {
       )
       Bun.env.SUISEKI_PIERRE_LINE_NUMBERS = "on"
       Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR = "sign"
+      Bun.env.SUISEKI_PIERRE_WORD_DIFF = "none"
+      Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH = "400"
 
       const loadedConfig = await loadConfig()
 
       expect(loadedConfig.pierre["line-numbers"]).toEqual(true)
       expect(loadedConfig.pierre["change-indicator"]).toEqual("sign")
+      expect(loadedConfig.pierre["word-diff"]).toEqual("none")
+      expect(loadedConfig.pierre["max-line-diff-length"]).toEqual(400)
+    })
+
+    test("applies environment overrides above per-repo config", async () => {
+      const repositoryDirectory = join(temporaryHomeDirectory, "repo")
+      await mkdir(repositoryDirectory, { recursive: true })
+      await writeFile(
+        join(repositoryDirectory, ".suiseki.toml"),
+        ["[pierre]", 'view = "split"'].join("\n"),
+      )
+      Bun.env.SUISEKI_PIERRE_VIEW = "unified"
+
+      const loadedConfig = await loadConfig({
+        currentWorkingDirectory: repositoryDirectory,
+      })
+
+      expect(loadedConfig.pierre.view).toEqual("unified")
+    })
+
+    test("applies CLI overrides above environment overrides", async () => {
+      Bun.env.SUISEKI_PIERRE_VIEW = "split"
+
+      const loadedConfig = await loadConfig({
+        overrides: {
+          pierre: {
+            view: "unified",
+          },
+        },
+      })
+
+      expect(loadedConfig.pierre.view).toEqual("unified")
     })
 
     test("applies shiki environment overrides above config file", async () => {
@@ -189,6 +305,15 @@ describe("config.ts", () => {
       await expect(loadConfig()).rejects.toThrow(ConfigError)
       await expect(loadConfig()).rejects.toThrow(
         "SUISEKI_SHIKI_MAX_LINE_LENGTH",
+      )
+    })
+
+    test("rejects invalid SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH", async () => {
+      Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH = "0"
+
+      await expect(loadConfig()).rejects.toThrow(ConfigError)
+      await expect(loadConfig()).rejects.toThrow(
+        "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH",
       )
     })
   })

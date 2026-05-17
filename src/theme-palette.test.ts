@@ -21,7 +21,9 @@ describe("theme-palette.ts", () => {
       expect(palette.accent).toBeTruthy()
       expect(palette.dimmed).toBeTruthy()
       expect(palette.additionBackground).toBeTruthy()
+      expect(palette.additionInlineBackground).toBeTruthy()
       expect(palette.deletionBackground).toBeTruthy()
+      expect(palette.deletionInlineBackground).toBeTruthy()
       expect(palette.separatorBackground).toBeTruthy()
     })
 

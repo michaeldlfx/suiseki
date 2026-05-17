@@ -1,4 +1,5 @@
-import type { BundledTheme, Highlighter } from "shiki"
+import type { Highlighter } from "shiki"
+import { parseColor } from "./color"
 
 export type ThemePalette = {
   foreground: string
@@ -7,21 +8,17 @@ export type ThemePalette = {
   deletion: string
   accent: string
   additionBackground: string
+  additionInlineBackground: string
   deletionBackground: string
+  deletionInlineBackground: string
   separatorForeground: string
   separatorBackground: string
 }
 
 type ResolveThemePaletteParams = {
+  colorsOverride?: Record<string, string>
   highlighter: Highlighter
-  theme: BundledTheme
-}
-
-type RgbaColor = {
-  red: number
-  green: number
-  blue: number
-  alpha: number
+  theme: string
 }
 
 const DARK_FALLBACKS = {
@@ -37,6 +34,7 @@ const LIGHT_FALLBACKS = {
 }
 
 export function resolveThemePalette({
+  colorsOverride,
   highlighter,
   theme,
 }: ResolveThemePaletteParams): ThemePalette {
@@ -44,7 +42,7 @@ export function resolveThemePalette({
   const foreground = resolvedTheme.fg
   const background = resolvedTheme.bg
   const isDark = resolvedTheme.type === "dark"
-  const colors = resolvedTheme.colors ?? {}
+  const colors = colorsOverride ?? resolvedTheme.colors ?? {}
   const fallbacks = isDark ? DARK_FALLBACKS : LIGHT_FALLBACKS
 
   const addition = colors["terminal.ansiGreen"] ?? fallbacks.addition
@@ -62,12 +60,22 @@ export function resolveThemePalette({
     additionBgFromTheme != null
       ? compositeOver(additionBgFromTheme, background)
       : blendColors(background, addition, 0.15)
+  const additionInlineBackground = blendColors(
+    additionBackground,
+    addition,
+    0.3,
+  )
 
   const deletionBgFromTheme = colors["diffEditor.removedTextBackground"]
   const deletionBackground =
     deletionBgFromTheme != null
       ? compositeOver(deletionBgFromTheme, background)
       : blendColors(background, deletion, 0.15)
+  const deletionInlineBackground = blendColors(
+    deletionBackground,
+    deletion,
+    0.3,
+  )
 
   const separatorForeground = blendColors(foreground, background, 0.35)
   const separatorBackground = blendColors(background, foreground, 0.12)
@@ -79,44 +87,12 @@ export function resolveThemePalette({
     deletion,
     accent,
     additionBackground,
+    additionInlineBackground,
     deletionBackground,
+    deletionInlineBackground,
     separatorForeground,
     separatorBackground,
   }
-}
-
-function parseHexToRgba(hex: string): RgbaColor | undefined {
-  const normalized = hex.replace("#", "")
-
-  if (/^[0-9a-fA-F]{3}$/.test(normalized)) {
-    const [r, g, b] = normalized
-    return {
-      red: Number.parseInt(`${r}${r}`, 16),
-      green: Number.parseInt(`${g}${g}`, 16),
-      blue: Number.parseInt(`${b}${b}`, 16),
-      alpha: 1,
-    }
-  }
-
-  if (/^[0-9a-fA-F]{6}$/.test(normalized)) {
-    return {
-      red: Number.parseInt(normalized.slice(0, 2), 16),
-      green: Number.parseInt(normalized.slice(2, 4), 16),
-      blue: Number.parseInt(normalized.slice(4, 6), 16),
-      alpha: 1,
-    }
-  }
-
-  if (/^[0-9a-fA-F]{8}$/.test(normalized)) {
-    return {
-      red: Number.parseInt(normalized.slice(0, 2), 16),
-      green: Number.parseInt(normalized.slice(2, 4), 16),
-      blue: Number.parseInt(normalized.slice(4, 6), 16),
-      alpha: Number.parseInt(normalized.slice(6, 8), 16) / 255,
-    }
-  }
-
-  return undefined
 }
 
 function rgbToHex(red: number, green: number, blue: number): string {
@@ -126,8 +102,8 @@ function rgbToHex(red: number, green: number, blue: number): string {
 }
 
 function blendColors(color1: string, color2: string, ratio: number): string {
-  const parsed1 = parseHexToRgba(color1)
-  const parsed2 = parseHexToRgba(color2)
+  const parsed1 = parseColor(color1)
+  const parsed2 = parseColor(color2)
 
   if (parsed1 == null || parsed2 == null) {
     return color1
@@ -141,8 +117,8 @@ function blendColors(color1: string, color2: string, ratio: number): string {
 }
 
 function compositeOver(foreground: string, background: string): string {
-  const fg = parseHexToRgba(foreground)
-  const bg = parseHexToRgba(background)
+  const fg = parseColor(foreground)
+  const bg = parseColor(background)
 
   if (fg == null || bg == null) {
     return foreground
