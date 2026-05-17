@@ -93,6 +93,21 @@ describe("config.ts", () => {
       })
     })
 
+    test("loads config from ~/.suiseki/config.toml when HOME is overridden", async () => {
+      const homeSuisekiDirectory = join(temporaryHomeDirectory, ".suiseki")
+      await mkdir(homeSuisekiDirectory, { recursive: true })
+      await writeFile(
+        join(homeSuisekiDirectory, "config.toml"),
+        ["[shiki]", 'theme = "github-light"'].join("\n"),
+      )
+      Bun.env.SUISEKI_CONFIG_DIR = undefined
+      Bun.env.XDG_CONFIG_HOME = undefined
+
+      const loadedConfig = await loadConfig()
+
+      expect(loadedConfig.shiki.theme).toEqual("github-light")
+    })
+
     test("merges partial config with defaults", async () => {
       await mkdir(explicitConfigDirectory, { recursive: true })
       await writeFile(
