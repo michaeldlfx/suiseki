@@ -4,8 +4,7 @@ import { renderGutter } from "./gutter"
 
 const TEST_COLORS = {
   gutterForegroundColor: "#8b949e",
-  additionSignColor: "#3fb950",
-  deletionSignColor: "#f85149",
+  markerForegroundColor: "#3fb950",
 }
 
 describe("gutter.ts", () => {
@@ -16,7 +15,7 @@ describe("gutter.ts", () => {
         lineNumber: 42,
         lineNumberWidth: 3,
         lineNumbers: true,
-        sign: "+",
+        marker: "+",
       })
 
       expect(stripAnsi(gutter.text)).toEqual("  42 +  ")
@@ -29,7 +28,7 @@ describe("gutter.ts", () => {
         lineNumber: 42,
         lineNumberWidth: 3,
         lineNumbers: false,
-        sign: "-",
+        marker: "-",
       })
 
       expect(stripAnsi(gutter.text)).toEqual("-  ")

@@ -5,7 +5,7 @@ import {
   type Hunk,
   parsePatchFiles,
 } from "@pierre/diffs"
-import { diffChars, diffWordsWithSpace } from "diff"
+import { type ChangeObject, diffChars, diffWordsWithSpace } from "diff"
 import {
   type BundledLanguage,
   type BundledTheme,
@@ -23,7 +23,7 @@ import {
   stripAnsi,
 } from "../ansi"
 import { isBundledThemeName, type SuisekiConfig } from "../config"
-import { type ChangeSign, renderGutter } from "../gutter"
+import { type ChangeMarker, renderGutter } from "../gutter"
 import { resolveThemePalette, type ThemePalette } from "../theme-palette"
 import {
   type DiffLineCallbackProps,
@@ -102,6 +102,8 @@ type InlineHighlightPair = {
   deletions: InlineHighlightRange[]
 }
 
+type InlineHighlightSpan = [highlighted: boolean, text: string]
+
 type ResolveInlineHighlightRangesParams = {
   configuration: SuisekiConfig
   file: FileDiffMetadata
@@ -112,6 +114,14 @@ type ComputeInlineHighlightRangesParams = {
   deletionLine: string
   maxLineDiffLength: number
   wordDiff: SuisekiConfig["pierre"]["word-diff"]
+}
+
+type PushInlineHighlightSpanParams = {
+  change: ChangeObject<string>
+  highlightedSpans: InlineHighlightSpan[]
+  isLastChange: boolean
+  isNeutral?: boolean
+  joinNeutralSpans: boolean
 }
 
 type RenderTokenizedContentParams = {
@@ -309,17 +319,19 @@ function renderUnifiedDiffLine({
   const backgroundColor = configuration.pierre["diff-background"]
     ? getBackgroundColor(line.kind, palette)
     : undefined
-  const sign = getChangeSign(line.kind)
+  const marker = getChangeMarker({
+    changeIndicator: configuration.pierre["change-indicator"],
+    kind: line.kind,
+  })
   const normalizedContent = stripLineEnding(line.content)
   const gutter = renderGutter({
-    additionSignColor: palette.addition,
     backgroundColor,
-    deletionSignColor: palette.deletion,
     gutterForegroundColor: palette.dimmed,
     lineNumber: line.lineNumber,
     lineNumberWidth,
     lineNumbers: configuration.pierre["line-numbers"],
-    sign,
+    marker,
+    markerForegroundColor: getChangeMarkerColor(line.kind, palette),
   })
   const inlineBackgroundColor =
     configuration.pierre["diff-background"] &&
@@ -415,7 +427,10 @@ function renderSplitSide({
     side.inlineHighlightRanges.length > 0
       ? getInlineBackgroundColor(side.kind, palette)
       : undefined
-  const sign = getChangeSign(side.kind)
+  const marker = getChangeMarker({
+    changeIndicator: configuration.pierre["change-indicator"],
+    kind: side.kind,
+  })
   const normalizedContent = stripLineEnding(side.content)
   const contentWidth = Math.max(
     columnWidth -
@@ -430,14 +445,13 @@ function renderSplitSide({
   return contentSegments.map((contentSegment, segmentIndex) => {
     const contentOffset = segmentIndex * contentWidth
     const gutter = renderGutter({
-      additionSignColor: palette.addition,
       backgroundColor,
-      deletionSignColor: palette.deletion,
       gutterForegroundColor: palette.dimmed,
       lineNumber: segmentIndex === 0 ? side.lineNumber : undefined,
       lineNumberWidth,
       lineNumbers: configuration.pierre["line-numbers"],
-      sign: segmentIndex === 0 ? sign : " ",
+      marker: segmentIndex === 0 ? marker : " ",
+      markerForegroundColor: getChangeMarkerColor(side.kind, palette),
     })
     const renderedContent = renderTokenizedContent({
       backgroundColor,
@@ -835,32 +849,97 @@ function computeInlineHighlightRanges({
     wordDiff === "char"
       ? diffChars(normalizedDeletionLine, normalizedAdditionLine)
       : diffWordsWithSpace(normalizedDeletionLine, normalizedAdditionLine)
-  let additionOffset = 0
-  let deletionOffset = 0
+  const additionSpans: InlineHighlightSpan[] = []
+  const deletionSpans: InlineHighlightSpan[] = []
+  const joinNeutralSpans = wordDiff === "word-alt"
+  const lastChange = changes.at(-1)
 
   for (const change of changes) {
-    const valueLength = change.value.length
+    const isLastChange = change === lastChange
 
-    if (change.added) {
-      inlineHighlightRanges.additions.push({
-        start: additionOffset,
-        end: additionOffset + valueLength,
+    if (!change.added && !change.removed) {
+      pushInlineHighlightSpan({
+        change,
+        highlightedSpans: deletionSpans,
+        isLastChange,
+        isNeutral: true,
+        joinNeutralSpans,
       })
-      additionOffset += valueLength
+      pushInlineHighlightSpan({
+        change,
+        highlightedSpans: additionSpans,
+        isLastChange,
+        isNeutral: true,
+        joinNeutralSpans,
+      })
       continue
     }
 
     if (change.removed) {
-      inlineHighlightRanges.deletions.push({
-        start: deletionOffset,
-        end: deletionOffset + valueLength,
+      pushInlineHighlightSpan({
+        change,
+        highlightedSpans: deletionSpans,
+        isLastChange,
+        joinNeutralSpans,
       })
-      deletionOffset += valueLength
       continue
     }
 
-    additionOffset += valueLength
-    deletionOffset += valueLength
+    pushInlineHighlightSpan({
+      change,
+      highlightedSpans: additionSpans,
+      isLastChange,
+      joinNeutralSpans,
+    })
+  }
+
+  inlineHighlightRanges.deletions =
+    getInlineHighlightRangesFromSpans(deletionSpans)
+  inlineHighlightRanges.additions =
+    getInlineHighlightRangesFromSpans(additionSpans)
+
+  return inlineHighlightRanges
+}
+
+function pushInlineHighlightSpan({
+  change,
+  highlightedSpans,
+  isLastChange,
+  isNeutral = false,
+  joinNeutralSpans,
+}: PushInlineHighlightSpanParams): void {
+  const latestSpan = highlightedSpans.at(-1)
+  if (latestSpan == null || isLastChange || !joinNeutralSpans) {
+    highlightedSpans.push([!isNeutral, change.value])
+    return
+  }
+
+  const latestSpanIsNeutral = !latestSpan[0]
+  if (
+    isNeutral === latestSpanIsNeutral ||
+    (isNeutral && change.value.length === 1 && !latestSpanIsNeutral)
+  ) {
+    latestSpan[1] += change.value
+    return
+  }
+
+  highlightedSpans.push([!isNeutral, change.value])
+}
+
+function getInlineHighlightRangesFromSpans(
+  highlightedSpans: InlineHighlightSpan[],
+): InlineHighlightRange[] {
+  const inlineHighlightRanges: InlineHighlightRange[] = []
+  let spanOffset = 0
+
+  for (const [highlighted, text] of highlightedSpans) {
+    if (highlighted) {
+      inlineHighlightRanges.push({
+        start: spanOffset,
+        end: spanOffset + text.length,
+      })
+    }
+    spanOffset += text.length
   }
 
   return inlineHighlightRanges
@@ -998,12 +1077,11 @@ function emitNoNewlineMarker({
   palette,
 }: EmitNoNewlineMarkerParams): string {
   const gutter = renderGutter({
-    additionSignColor: palette.addition,
-    deletionSignColor: palette.deletion,
     gutterForegroundColor: palette.dimmed,
     lineNumberWidth,
     lineNumbers: configuration.pierre["line-numbers"],
-    sign: " ",
+    marker: " ",
+    markerForegroundColor: palette.dimmed,
   })
 
   return `${gutter.text}${emitStyledText({
@@ -1183,16 +1261,37 @@ function getInlineBackgroundColor(
   return undefined
 }
 
-function getChangeSign(kind: DiffLineKind): ChangeSign {
+function getChangeMarker({
+  changeIndicator,
+  kind,
+}: {
+  changeIndicator: SuisekiConfig["pierre"]["change-indicator"]
+  kind: DiffLineKind
+}): ChangeMarker {
+  if (changeIndicator === "background" || kind === "context") {
+    return " "
+  }
+
+  if (changeIndicator === "bar") {
+    return "│"
+  }
+
+  return kind === "addition" ? "+" : "-"
+}
+
+function getChangeMarkerColor(
+  kind: DiffLineKind,
+  palette: ThemePalette,
+): string {
   if (kind === "addition") {
-    return "+"
+    return palette.addition
   }
 
   if (kind === "deletion") {
-    return "-"
+    return palette.deletion
   }
 
-  return " "
+  return palette.dimmed
 }
 
 function getGutterVisibleLength({

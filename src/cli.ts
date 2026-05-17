@@ -64,7 +64,7 @@ function getHelpText(): string {
     "  --diff-background / --no-diff-background",
     "  --file-header / --no-file-header",
     "  --hunk-header <none|full>",
-    "  --word-diff <word|char|none>",
+    "  --word-diff <word-alt|word|char|none>",
     "  --max-line-diff-length <number>",
     "  --max-line-length <number>",
     "  --no-pager",

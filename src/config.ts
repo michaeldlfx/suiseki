@@ -14,7 +14,7 @@ const PIERRE_CONFIG_FIELDS = {
   "diff-background": "boolean",
   "file-header": "boolean",
   "hunk-header": '"full" | "none"',
-  "word-diff": '"word" | "char" | "none"',
+  "word-diff": '"word-alt" | "word" | "char" | "none"',
   "max-line-diff-length": vPositiveInteger,
 } as const
 
@@ -77,7 +77,7 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
     "diff-background": true,
     "file-header": true,
     "hunk-header": "none",
-    "word-diff": "word",
+    "word-diff": "word-alt",
     "max-line-diff-length": 1000,
   },
   shiki: {

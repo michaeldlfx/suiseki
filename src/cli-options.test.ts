@@ -9,7 +9,7 @@ describe("cli-options.ts", () => {
         "split",
         "--theme=github-light",
         "--word-diff",
-        "char",
+        "word-alt",
         "--max-line-diff-length",
         "250",
         "HEAD~1",
@@ -19,7 +19,7 @@ describe("cli-options.ts", () => {
       expect(parsedOptions.overrides).toEqual({
         pierre: {
           view: "split",
-          "word-diff": "char",
+          "word-diff": "word-alt",
           "max-line-diff-length": 250,
         },
         shiki: {

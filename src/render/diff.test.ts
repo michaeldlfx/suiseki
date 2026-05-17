@@ -122,6 +122,39 @@ describe("renderDiff", () => {
     expect(renderedDiff).not.toContain(";48;2;")
   })
 
+  test("renders bar change indicators", async () => {
+    const configuration = configWith({
+      pierre: {
+        "change-indicator": "bar",
+        "line-numbers": false,
+      },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain('│    console.log("Hello " + name)')
+    expect(plainRenderedDiff).toContain("│    const message =")
+  })
+
+  test("omits signs when change indicator is background", async () => {
+    const configuration = configWith({
+      pierre: {
+        "change-indicator": "background",
+        "line-numbers": false,
+      },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const additionLine = stripAnsi(renderedDiff)
+      .split("\n")
+      .find((line) => line.includes("const message ="))
+
+    assert(additionLine != null, "addition line should be rendered")
+    expect(additionLine.startsWith("   ")).toEqual(true)
+    expect(additionLine.startsWith("+")).toEqual(false)
+  })
+
   test("omits file header when pierre.file-header is false", async () => {
     const configuration = configWith({
       pierre: { "file-header": false },
@@ -367,7 +400,10 @@ index 1111111..2222222 100644
 -abc
 +axc
 `
-    const renderedWordDiff = await renderDiff(compactDiff, DEFAULT_CONFIG)
+    const renderedWordDiff = await renderDiff(
+      compactDiff,
+      configWith({ pierre: { "word-diff": "word" } }),
+    )
     const renderedCharDiff = await renderDiff(
       compactDiff,
       configWith({ pierre: { "word-diff": "char" } }),
@@ -375,6 +411,28 @@ index 1111111..2222222 100644
 
     expect(stripAnsi(renderedCharDiff)).toEqual(stripAnsi(renderedWordDiff))
     expect(renderedCharDiff).not.toEqual(renderedWordDiff)
+  })
+
+  test("renders word-alt inline highlights differently from word highlights", async () => {
+    const punctuationDiff = `diff --git a/punctuation.txt b/punctuation.txt
+index 1111111..2222222 100644
+--- a/punctuation.txt
++++ b/punctuation.txt
+@@ -1 +1 @@
+-a-b-c
++a+b+c
+`
+    const renderedWordAltDiff = await renderDiff(
+      punctuationDiff,
+      DEFAULT_CONFIG,
+    )
+    const renderedWordDiff = await renderDiff(
+      punctuationDiff,
+      configWith({ pierre: { "word-diff": "word" } }),
+    )
+
+    expect(stripAnsi(renderedWordAltDiff)).toEqual(stripAnsi(renderedWordDiff))
+    expect(renderedWordAltDiff).not.toEqual(renderedWordDiff)
   })
 
   test("skips inline diff highlights for lines above pierre.max-line-diff-length", async () => {

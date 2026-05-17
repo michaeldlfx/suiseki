@@ -63,7 +63,7 @@ describe("config.ts", () => {
           "diff-background = false",
           "file-header = false",
           'hunk-header = "none"',
-          'word-diff = "char"',
+          'word-diff = "word-alt"',
           "max-line-diff-length = 250",
           "",
           "[shiki]",
@@ -82,7 +82,7 @@ describe("config.ts", () => {
           "diff-background": false,
           "file-header": false,
           "hunk-header": "none",
-          "word-diff": "char",
+          "word-diff": "word-alt",
           "max-line-diff-length": 250,
         },
         shiki: {

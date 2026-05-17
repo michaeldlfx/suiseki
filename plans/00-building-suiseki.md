@@ -352,26 +352,18 @@ As of `@pierre/diffs@1.1.22`, the top-level package import exposes `parsePatchFi
 
 Every config key lives under `[pierre]` or `[shiki]`. Suiseki does not claim Pierre or Shiki options as its own — it exposes them honestly under their respective namespaces.
 
-#### `[pierre]` keys (v0)
+#### `[pierre]` diff keys
 
 | Pierre option | Suiseki key | Notes |
 |---|---|---|
-| `BaseDiffOptions.diffStyle` | `pierre.view` | `"unified"` in v0; `"split"` in v1 |
+| `BaseDiffOptions.diffStyle` | `pierre.view` | `"unified"` / `"split"` |
 | `BaseDiffOptions.diffIndicators` | `pierre.change-indicator` | `classic→sign`, `bars→bar`, `none→background` |
 | `BaseCodeOptions.disableLineNumbers` | `pierre.line-numbers` | Inverted boolean |
 | `BaseDiffOptions.disableBackground` | `pierre.diff-background` | Inverted boolean, controls line bg colors |
 | `BaseCodeOptions.disableFileHeader` | `pierre.file-header` | Inverted boolean |
 | `BaseDiffOptions.hunkSeparators` | `pierre.hunk-header` | Simplified to `"full"` / `"none"` |
-
-#### `[pierre]` keys (deferred to v1)
-
-| Pierre option | Suiseki key | Notes |
-|---|---|---|
-| `collapsedContextThreshold` | `pierre.context-lines` | Context line count |
-| `expandUnchanged` | `pierre.expand-unchanged` | Show all context |
-| `lineDiffType` | `pierre.word-diff` | `"word"` / `"char"` / `"none"` |
+| `lineDiffType` | `pierre.word-diff` | `"word-alt"` / `"word"` / `"char"` / `"none"` |
 | `maxLineDiffLength` | `pierre.max-line-diff-length` | Performance guard for word diff |
-| `themeType` | `pierre.theme-type` | `"dark"` / `"light"` for dual-theme records |
 
 #### `[shiki]` keys (v0)
 
@@ -391,8 +383,13 @@ Every config key lives under `[pierre]` or `[shiki]`. Suiseki does not claim Pie
 | `unsafeCSS` | DOM-specific |
 | `collapsed` | Interactive UI state |
 | `disableVirtualizationBuffers` | DOM virtualization |
+| `collapsedContextThreshold` | Full-file expansion setting; `git diff` patch context belongs to Git's `-U<n>` option |
+| `expandUnchanged` | Full-file expansion setting; not meaningful for pre-rendered patch streams |
 | `expansionLineCount` | Interactive expansion |
 | `parseDiffOptions` | Internal jsdiff tuning |
+| `themeType` | CSS/system theme switching; terminal output uses one explicit Shiki theme |
+
+Tree options stay deferred to v2, when `@pierre/trees` becomes a dependency.
 
 ---
 
@@ -408,7 +405,8 @@ In rough order of value:
 - [x] **Inline word/char diff** — `diff` npm package's `diffWordsWithSpace` / `diffChars` on changed line pairs, overlay extra ANSI highlight (brighter bg) on changed tokens.
 - [x] **Per-repo `.suiseki.toml`** — walk up from cwd to find. Merged on top of user config. The killer feature delta lacks: a monorepo can specify "split view + word-level for `apps/`, unified for `docs/`".
 - [x] **CLI flags** — override any config key from the command line (`--view split`, `--theme catppuccin-mocha`, etc.). Uses a small local parser so unknown arguments still pass through to `git diff`.
-- [ ] **Pierre terminal-surface mapping** — inventory Pierre's public diff/tree options and expose the renderer-agnostic ones through typed config keys and matching CLI flags.
+- [ ] **Default usage on empty invocation** — when `suiseki` runs with no stdin and no git diff arguments, print concise usage/setup guidance instead of silently exiting on an empty working tree.
+- [x] **Pierre terminal-surface mapping** — inventory Pierre's public diff/tree options and expose terminal-relevant, renderer-agnostic diff options through typed config keys and matching CLI flags. Tree options stay v2-only until `@pierre/trees` is added.
 - [ ] **Pager auto-spawn** — detect non-TTY stdout, spawn `less -R --no-init` automatically. `--no-pager` to disable.
 - [ ] **Streaming for huge diffs** — switch from `parsePatchFiles` (whole-buffer) to `@pierre/diffs`'s `shiki-stream` tokenizer for diffs over N lines. Memory stays bounded.
 - [ ] **Git integration docs** in README:
