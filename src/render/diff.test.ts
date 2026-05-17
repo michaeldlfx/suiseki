@@ -33,7 +33,7 @@ describe("renderDiff", () => {
     const plainRenderedDiff = stripAnsi(renderedDiff)
     const templateInterpolation = "$" + "{name}"
 
-    expect(plainRenderedDiff).toContain("diff src/example.ts")
+    expect(plainRenderedDiff).toContain("src/example.ts")
     expect(plainRenderedDiff).toContain('2 -    console.log("Hello " + name)')
     expect(plainRenderedDiff).toContain(
       `2 +    const message = \`Hello ${templateInterpolation}\``,
@@ -47,7 +47,8 @@ describe("renderDiff", () => {
     const renderedDiff = await renderDiff(BASIC_DIFF, DEFAULT_CONFIG)
     const plainRenderedDiff = stripAnsi(renderedDiff)
 
-    expect(plainRenderedDiff).toContain("diff src/example.ts  -1 +2")
+    expect(plainRenderedDiff).toContain("src/example.ts")
+    expect(plainRenderedDiff).toContain("-1 +2")
   })
 
   test("does not show hunk header by default", async () => {
@@ -102,7 +103,7 @@ describe("renderDiff", () => {
     const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
     const plainRenderedDiff = stripAnsi(renderedDiff)
 
-    expect(plainRenderedDiff).not.toContain("diff src/example.ts")
+    expect(plainRenderedDiff).not.toContain("src/example.ts")
   })
 
   test("falls back to plaintext tokenization for lines exceeding shiki.max-line-length", async () => {
