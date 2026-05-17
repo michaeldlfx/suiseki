@@ -13,8 +13,16 @@ class CliError extends Error {
 }
 
 async function main(): Promise<void> {
+  const cliArguments = process.argv.slice(2)
+  const noPager =
+    cliArguments.includes("--no-pager") ||
+    Bun.env.SUISEKI_NO_PAGER === "1" ||
+    Bun.env.SUISEKI_NO_PAGER?.toLowerCase() === "true"
+  const filteredArguments = cliArguments.filter(
+    (argument) => argument !== "--no-pager",
+  )
   const configuration = await loadConfig()
-  const patch = await readPatchInput(process.argv.slice(2))
+  const patch = await readPatchInput(filteredArguments)
 
   if (patch.trim() === "") {
     return
@@ -22,9 +30,30 @@ async function main(): Promise<void> {
 
   const renderedDiff = await renderDiff(patch, configuration)
 
-  if (renderedDiff !== "") {
-    process.stdout.write(`${renderedDiff}\n`)
+  if (renderedDiff === "") {
+    return
   }
+
+  const output = `${renderedDiff}\n`
+
+  if (!noPager && process.stdout.isTTY === true) {
+    await writeWithPager(output)
+  } else {
+    process.stdout.write(output)
+  }
+}
+
+async function writeWithPager(output: string): Promise<void> {
+  const pager = Bun.spawn(["less", "-R", "--no-init", "--quit-if-one-screen"], {
+    stdin: "pipe",
+    stdout: "inherit",
+    stderr: "inherit",
+  })
+
+  pager.stdin.write(output)
+  pager.stdin.end()
+
+  await pager.exited
 }
 
 async function readPatchInput(argumentsFromCli: string[]): Promise<string> {

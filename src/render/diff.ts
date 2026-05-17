@@ -1,4 +1,5 @@
 import {
+  type ChangeTypes,
   type FileDiffMetadata,
   getFiletypeFromFileName,
   type Hunk,
@@ -66,10 +67,16 @@ export async function renderDiff(
   })
   const outputLines: string[] = []
 
+  let fileIndex = 0
+
   for (const parsedPatch of patches) {
     outputLines.push(...renderPatchMetadata(parsedPatch.patchMetadata))
 
     for (const file of parsedPatch.files) {
+      if (fileIndex > 0) {
+        outputLines.push("")
+      }
+
       const language = await resolveLanguageForFile(highlighter, file.name)
       const lineNumberWidth = getLineNumberWidth(file)
       const emittedHunkIndexes = new Set<number>()
@@ -141,6 +148,7 @@ export async function renderDiff(
         )
       }
       outputLines.push(...fileLines)
+      fileIndex++
     }
   }
 
@@ -324,18 +332,20 @@ function emitFileHeader({
   deletionCount,
   terminalWidth,
 }: EmitFileHeaderParams): string {
-  const fileNameText = ` ${formatFileName(file)}`
+  const statusIcon = getFileStatusIcon(file.type)
   const summaryText = `-${deletionCount} +${additionCount} `
+  const headerPrefixVisibleLength =
+    statusIcon.length + 1 + getFileNameVisibleLength(file)
   const paddingLength = Math.max(
-    terminalWidth - fileNameText.length - summaryText.length,
+    terminalWidth - headerPrefixVisibleLength - summaryText.length,
     2,
   )
 
-  const fileName = emitStyledText({
-    text: fileNameText,
-    foregroundColor: "#79b8ff",
-    bold: true,
+  const statusIconRendered = emitStyledText({
+    text: statusIcon,
+    foregroundColor: getFileStatusColor(file.type),
   })
+  const fileNameRendered = renderFormattedFileName(file)
   const padding = emitStyledText({
     text: " ".repeat(paddingLength),
   })
@@ -348,7 +358,7 @@ function emitFileHeader({
     foregroundColor: "#3fb950",
   })
 
-  return `${fileName}${padding}${deletionSummary} ${additionSummary}`
+  return `${statusIconRendered} ${fileNameRendered}${padding}${deletionSummary} ${additionSummary}`
 }
 
 function emitHunkHeader(hunk: Hunk): string {
@@ -396,12 +406,97 @@ function emitNoNewlineMarker({
   })}${RESET}`
 }
 
-function formatFileName(file: FileDiffMetadata): string {
-  if (file.prevName != null && file.prevName !== file.name) {
-    return `${file.prevName} -> ${file.name}`
+function splitPath(filePath: string): { directory: string; fileName: string } {
+  const lastSlash = filePath.lastIndexOf("/")
+
+  if (lastSlash === -1) {
+    return { directory: "", fileName: filePath }
   }
 
-  return file.name
+  return {
+    directory: filePath.slice(0, lastSlash + 1),
+    fileName: filePath.slice(lastSlash + 1),
+  }
+}
+
+function renderFormattedFileName(file: FileDiffMetadata): string {
+  if (file.prevName != null && file.prevName !== file.name) {
+    const prev = splitPath(file.prevName)
+    const curr = splitPath(file.name)
+
+    const prevRendered =
+      (prev.directory !== ""
+        ? emitStyledText({ text: prev.directory, foregroundColor: "#8b949e" })
+        : "") +
+      emitStyledText({
+        text: prev.fileName,
+        foregroundColor: "#e1e4e8",
+        bold: true,
+      })
+
+    const currRendered =
+      (curr.directory !== ""
+        ? emitStyledText({ text: curr.directory, foregroundColor: "#8b949e" })
+        : "") +
+      emitStyledText({
+        text: curr.fileName,
+        foregroundColor: "#e1e4e8",
+        bold: true,
+      })
+
+    return `${prevRendered} ${emitStyledText({ text: "→", foregroundColor: "#8b949e" })} ${currRendered}`
+  }
+
+  const { directory, fileName } = splitPath(file.name)
+
+  const directoryRendered =
+    directory !== ""
+      ? emitStyledText({ text: directory, foregroundColor: "#8b949e" })
+      : ""
+
+  const fileNameRendered = emitStyledText({
+    text: fileName,
+    foregroundColor: "#e1e4e8",
+    bold: true,
+  })
+
+  return `${directoryRendered}${fileNameRendered}`
+}
+
+function getFileNameVisibleLength(file: FileDiffMetadata): number {
+  if (file.prevName != null && file.prevName !== file.name) {
+    return file.prevName.length + 3 + file.name.length
+  }
+
+  return file.name.length
+}
+
+function getFileStatusIcon(changeType: ChangeTypes): string {
+  switch (changeType) {
+    case "change":
+      return "Δ"
+    case "new":
+      return "+"
+    case "deleted":
+      return "-"
+    case "rename-pure":
+    case "rename-changed":
+      return "→"
+  }
+}
+
+function getFileStatusColor(changeType: ChangeTypes): string {
+  switch (changeType) {
+    case "change":
+      return "#e1e4e8"
+    case "new":
+      return "#3fb950"
+    case "deleted":
+      return "#f85149"
+    case "rename-pure":
+    case "rename-changed":
+      return "#d2a8ff"
+  }
 }
 
 function hasNoNewlineMarker(line: DiffLineCallbackProps): boolean {
