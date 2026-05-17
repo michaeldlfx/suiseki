@@ -176,11 +176,23 @@ export async function renderDiff(
       `Theme registration is missing a name: ${configuration.shiki.theme}`,
     )
   }
+  // Shiki mutates a registered theme's `colors` map in place during
+  // normalization, mangling display-p3 values. Hand it a clone so the
+  // registry reference stays pristine for palette derivation.
+  const themeForHighlighter =
+    typeof themeInput === "string"
+      ? themeInput
+      : { ...themeInput, colors: { ...themeInput.colors } }
   const highlighter = await getSingletonHighlighter({
-    themes: [themeInput],
+    themes: [themeForHighlighter],
     langs: ["plaintext"],
   })
-  const palette = resolveThemePalette({ highlighter, theme: themeName })
+  const palette = resolveThemePalette({
+    colorsOverride:
+      typeof themeInput === "string" ? undefined : themeInput.colors,
+    highlighter,
+    theme: themeName,
+  })
   const terminalWidth = getTerminalWidth()
   const outputLines: string[] = []
 

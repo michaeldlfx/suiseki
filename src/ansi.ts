@@ -1,4 +1,5 @@
 import type { ThemedToken } from "shiki"
+import { parseColor } from "./color"
 
 export const RESET = "\x1b[0m"
 const ANSI_ESCAPE = String.fromCharCode(27)
@@ -125,27 +126,9 @@ function createColorCode(
   return `${mode};2;${red};${green};${blue}`
 }
 
-function parseHexColor(hexColor: string): ColorTuple | undefined {
-  const normalizedColor = hexColor.replace("#", "")
-
-  if (/^[0-9a-fA-F]{3}$/.test(normalizedColor)) {
-    const [red, green, blue] = normalizedColor
-    return [
-      Number.parseInt(`${red}${red}`, 16),
-      Number.parseInt(`${green}${green}`, 16),
-      Number.parseInt(`${blue}${blue}`, 16),
-    ]
-  }
-
-  if (/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(normalizedColor)) {
-    return [
-      Number.parseInt(normalizedColor.slice(0, 2), 16),
-      Number.parseInt(normalizedColor.slice(2, 4), 16),
-      Number.parseInt(normalizedColor.slice(4, 6), 16),
-    ]
-  }
-
-  return undefined
+function parseHexColor(color: string): ColorTuple | undefined {
+  const parsed = parseColor(color)
+  return parsed == null ? undefined : [parsed.red, parsed.green, parsed.blue]
 }
 
 function hasFontStyle(
