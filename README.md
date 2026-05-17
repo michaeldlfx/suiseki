@@ -10,7 +10,7 @@ The name is a homage. *Pierre → stone → 水石*. The tool exists to do, for 
 
 ## Status
 
-`suiseki` is in v0: a working unified-view diff renderer with Shiki syntax highlighting, theme-derived diff backgrounds, configurable file/hunk headers, line numbers, and pager support. It works both as a piped Unix filter and as a Git pager.
+`suiseki` is in v1 development: unified and split diff views work with Shiki syntax highlighting, theme-derived diff backgrounds, configurable file/hunk headers, line numbers, and pager support. It works both as a piped Unix filter and as a Git pager.
 
 The project is a friendly terminal surface for Pierre's renderer-agnostic packages and Shiki's syntax/theme ecosystem: `@pierre/diffs` first, `@pierre/trees` next, and Shiki throughout. It is a homage and companion, not a fork or replacement.
 
@@ -69,7 +69,7 @@ All settings can also be overridden via environment variables.
 
 ```toml
 [pierre]
-view = "unified"             # SUISEKI_PIERRE_VIEW
+view = "unified"             # SUISEKI_PIERRE_VIEW (unified | split)
 line-numbers = true          # SUISEKI_PIERRE_LINE_NUMBERS
 change-indicator = "sign"    # SUISEKI_PIERRE_CHANGE_INDICATOR (sign | bar | background)
 diff-background = true       # SUISEKI_PIERRE_DIFF_BACKGROUND
@@ -117,8 +117,8 @@ Run `make` or `make help` to see all available targets:
 
 ## Roadmap
 
-- **v0:** local unified-view diff renderer with Shiki highlighting, diff backgrounds, and pager support. *(current)*
-- **v1:** practical `delta` alternative with split view, inline word diff, theming, pager integration, config, and prebuilt binaries.
+- **v0:** local unified-view diff renderer with Shiki highlighting, diff backgrounds, and pager support.
+- **v1:** practical `delta` alternative with split view, inline word diff, theming, pager integration, config, and prebuilt binaries. *(current)*
 - **v2:** broader terminal code viewer with `view` and `tree` subcommands.
 
 ## Credits

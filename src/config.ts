@@ -5,7 +5,7 @@ import { type BundledTheme, bundledThemes } from "shiki"
 import { parse } from "smol-toml"
 
 export const vPierreConfig = type({
-  view: '"unified"',
+  view: '"unified" | "split"',
   "line-numbers": "boolean",
   "change-indicator": '"sign" | "bar" | "background"',
   "diff-background": "boolean",

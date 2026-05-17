@@ -404,7 +404,7 @@ Every config key lives under `[pierre]` or `[shiki]`. Suiseki does not claim Pie
 
 In rough order of value:
 
-- [ ] **Split-view layout** — pair old/new lines using `iterateOverDiff`'s split metadata, columnize to terminal width. Handle line wrapping within columns.
+- [x] **Split-view layout** — pair old/new lines using `iterateOverDiff`'s split metadata, columnize to terminal width. Handle line wrapping within columns.
 - [ ] **Inline word/char diff** — `diff` npm package's `diffWords` / `diffChars` on changed line pairs, overlay extra ANSI highlight (brighter bg) on changed tokens.
 - [ ] **Per-repo `.suiseki.toml`** — walk up from cwd to find. Merged on top of user config. The killer feature delta lacks: a monorepo can specify "split view + word-level for `apps/`, unified for `docs/`".
 - [ ] **CLI flags** — override any config key from the command line (`--view split`, `--theme catppuccin-mocha`, etc.). Use `cac` or `citty` for parsing (TS-native, light).

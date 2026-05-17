@@ -55,7 +55,7 @@ describe("config.ts", () => {
         join(explicitConfigDirectory, "config.toml"),
         [
           "[pierre]",
-          'view = "unified"',
+          'view = "split"',
           "line-numbers = false",
           'change-indicator = "bar"',
           "diff-background = false",
@@ -72,7 +72,7 @@ describe("config.ts", () => {
 
       expect(loadedConfig).toEqual({
         pierre: {
-          view: "unified",
+          view: "split",
           "line-numbers": false,
           "change-indicator": "bar",
           "diff-background": false,

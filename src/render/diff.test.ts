@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import assert from "node:assert"
 import { RESET, stripAnsi } from "../ansi"
 import { DEFAULT_CONFIG, type SuisekiConfig } from "../config"
 import { renderDiff } from "./diff"
@@ -248,5 +249,47 @@ index 1111111..2222222 100644
     const plainRenderedDiff = stripAnsi(renderedDiff)
 
     expect(plainRenderedDiff).toContain(longLine)
+  })
+
+  test("renders split view with paired deletion and addition columns", async () => {
+    const configuration = configWith({
+      pierre: { view: "split" },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const plainRenderedLines = stripAnsi(renderedDiff).split("\n")
+    const templateInterpolation = "$" + "{name}"
+    const pairedChangeLine = plainRenderedLines.find((line) =>
+      line.includes('console.log("Hello " + name)'),
+    )
+
+    assert(pairedChangeLine != null, "split view should render deleted line")
+    expect(pairedChangeLine).toContain(
+      `const message = \`Hello ${templateInterpolation}\``,
+    )
+    expect(pairedChangeLine).toContain("│")
+    expect(renderedDiff).toContain(";48;2;")
+  })
+
+  test("wraps long split-view content inside each column", async () => {
+    const longLine = "x".repeat(180)
+    const longLineDiff = `diff --git a/long.ts b/long.ts
+index 1111111..2222222 100644
+--- a/long.ts
++++ b/long.ts
+@@ -1 +1 @@
+-${longLine}
++${longLine}
+`
+    const configuration = configWith({
+      pierre: { view: "split" },
+    })
+
+    const renderedDiff = await renderDiff(longLineDiff, configuration)
+    const wrappedContentLines = stripAnsi(renderedDiff)
+      .split("\n")
+      .filter((line) => line.includes("xxxxxxxxxx"))
+
+    expect(wrappedContentLines.length > 1).toEqual(true)
   })
 })
