@@ -34,12 +34,28 @@ SUISEKI_NO_PAGER=1 git diff | suiseki
 
 ### As a Git pager
 
+Use per-command pager settings so `suiseki` renders diffs without taking over
+every paged Git command, such as `git log`:
+
 ```bash
-git config --global core.pager 'suiseki'
+git config --global pager.diff 'suiseki'
+git config --global pager.show 'suiseki'
 git config --global interactive.diffFilter 'suiseki --color-only'
 ```
 
-With that configured, `git diff`, `git show`, `git log -p`, and other diff-producing Git commands render through `suiseki` automatically.
+Or open `~/.gitconfig` with your editor and set:
+
+```gitconfig
+[pager]
+	diff = suiseki
+	show = suiseki
+
+[interactive]
+	diffFilter = suiseki --color-only
+```
+
+With that configured, `git diff`, `git show`, and interactive patch selection
+render through `suiseki`. Plain `git log` keeps Git's normal pager output.
 
 ## Configuration
 
