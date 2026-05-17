@@ -206,7 +206,7 @@ line-numbers = true
 change-indicator = "sign"    # sign | bar | background
 diff-background = true       # colored backgrounds on changed lines
 file-header = true           # show file header
-hunk-header = "full"         # full | none
+hunk-header = "none"         # none | full (none matches Pierre's default)
 
 [shiki]
 theme = "github-dark"        # any Shiki bundled theme
