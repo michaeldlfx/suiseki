@@ -420,39 +420,6 @@ In rough order of value:
   - [ ] merge conflicts (blocked on merge-conflict rendering)
   - [ ] large patches (blocked on streaming)
 
-### Publishing
-
-- [ ] Primary distribution: prebuilt binaries via GitHub Releases (Linux x64/arm64, macOS x64/arm64, Windows x64).
-- [ ] GitHub Actions on tag runs `bun test`, builds each target, and uploads binaries to the release.
-- [ ] Install script detects platform, fetches the latest binary, and installs to `/usr/local/bin/`.
-- [ ] Homebrew tap ships a `suiseki.rb` formula.
-- [ ] npm publish decision is made post-v1. If done, name is `suiseki-cli` or scoped `@<handle>/suiseki` with `bin: { suiseki: "..." }`; otherwise squat the name with a placeholder package pointing to the binaries.
-
-### Release target policy
-
-Local development builds write only `bin/suiseki`. Release builds write named artifacts under `dist/`.
-
-Bun supports cross-compiling standalone executables with `bun build --compile --target=...`, so the first release workflow should try a cross-build matrix before adding per-platform build runners. Do not add GitHub Actions workflows until v1 release work starts.
-
-Initial release targets:
-
-- [ ] `bun-darwin-arm64` → `dist/suiseki-darwin-arm64`
-- [ ] `bun-darwin-x64` → `dist/suiseki-darwin-x64`
-- [ ] `bun-linux-x64-baseline` → `dist/suiseki-linux-x64`
-- [ ] `bun-linux-arm64` → `dist/suiseki-linux-arm64`
-- [ ] `bun-linux-x64-musl` → `dist/suiseki-linux-x64-musl`
-- [ ] `bun-linux-arm64-musl` → `dist/suiseki-linux-arm64-musl`
-- [ ] `bun-windows-x64` → `dist/suiseki-windows-x64.exe`
-- [ ] `bun-windows-arm64` → `dist/suiseki-windows-arm64.exe`
-
-Release validation:
-
-- [ ] First pass: prove each target compiles and upload artifacts with checksums.
-- [ ] Later pass: smoke-test native artifacts on matching GitHub Actions runners where practical.
-- [ ] Minimal smoke test: `suiseki --version`, `suiseki --help`, and a tiny fixture diff piped through stdin.
-- [ ] If cross-built artifacts fail native smoke tests, split release jobs by runner OS/architecture instead of forcing a single-machine cross-build.
-- [ ] Keep Linux x64 on the baseline target unless size/perf tradeoffs justify a separate modern build. Broader CPU compatibility matters more than marginal speed for a diff renderer.
-
 ### README polish
 
 Required content for the published README, in order:
@@ -463,66 +430,19 @@ Required content for the published README, in order:
 - [ ] **30-second pitch** — what it does, who it's for
 - [ ] **Install** — Homebrew, install script, prebuilt binary download
 - [ ] **Quick start** — basic usage, common flags
-- [ ] **Git integration** — the `core.pager` / `interactive.diffFilter` snippet
+- [ ] **Git integration** — the per-command pager (`pager.diff`, `pager.show`) + `interactive.diffFilter` snippet
 - [ ] **Comparison table** vs `delta` / `difftastic` / `diff-so-fancy` — be honest, note what each does better
 - [ ] **Config reference** — every key documented, with example `~/.suiseki/config.toml`
-- [ ] **Themes** — small gallery showing a few popular Shiki themes applied to the same diff
+- [ ] **Themes** — small gallery showing a few popular Shiki themes plus the Pierre theme variants applied to the same diff
 - [ ] **Credits** — `@pierre/diffs` (Apache 2.0, with a link), Shiki (MIT), the Pierre Computer Company
 
-### Upstream-to-Pierre proposal
-
-- [ ] After v1 ships and there's something concrete to point at, file an issue on `pierrecomputer/pierre`:
-
-> **Proposal: extract `@pierre/diff-core` — renderer-agnostic parsing + iteration**
->
-> I've built a terminal diff renderer (link to suiseki-cli) using `@pierre/diffs`' parsing utilities, importing them from the main entry and tree-shaking the DOM code at bundle time. It works, but a renderer-agnostic `@pierre/diff-core` package would be cleaner — `@pierre/diffs` and `PierreDiffsSwift` (and now suiseki) all consume those utilities independent of the renderer. Happy to draft the PR.
-
-Outcome doesn't block anything. Even if they decline, v1 ships fine.
+Release engineering for v1 (binaries, GH Releases, Homebrew, install script) is tracked in [`01-publishing-suiseki.md`](./01-publishing-suiseki.md). Start that plan once these v1 features and the README polish are complete.
 
 ---
 
 # v2 — Pierre's renderer for the terminal
 
-**Goal:** the tool stops being just a diff renderer. It becomes the general "view code in the terminal" tool — diffs, files, and static trees. The name `suiseki` (the art of viewing stones) already covers this expanded identity; no rename needed.
-
-### Features
-
-- [ ] **Subcommand router in `src/cli.ts`** — replace v1's flat arg parsing with subcommand dispatch:
-   ```
-   suiseki diff [git-args]       # current v1 behavior
-   suiseki view <file>           # syntax-highlighted file (bat-alternative)
-   suiseki tree [path]           # static tree print, Pierre-styled
-   suiseki                       # smart default: if cwd is a git repo with changes,
-                                 # show `diff` of working tree; else show `tree .`
-   ```
-   Each subcommand inherits global flags (`--theme`, `--no-color`, `--no-pager`).
-
-- [ ] **`view` subcommand (`src/render/file.ts`)** — bat alternative:
-   - Read file from path
-   - Detect language from extension (use Pierre's `getFiletypeFromFileName` util)
-   - Tokenize with Shiki, emit ANSI with line numbers, no diff bg
-   - Show file header (filename, language detected, size)
-   - Same pager/color/theme rules as `diff`
-   - **Architecture**: 90% reused from v0's diff pipeline minus the diff overlay. ~150 LOC of new code.
-
-- [ ] **`tree` subcommand (`src/render/tree.ts`)** — `tree` command alternative, Pierre-styled:
-   - Use `@pierre/trees` model layer (`FileTreeController`, path helpers, `gitStatus`) — vendor or import similar to `@pierre/diffs`
-   - Walk filesystem from given path (`readdir` via Bun)
-   - Optionally annotate with git status (M/A/D/?? prefixes)
-   - Print using Pierre's icon set + tree-drawing characters (`├── `, `└── `, `│   `)
-   - Honor `.gitignore` by default; `--all` flag overrides
-   - **Architecture**: still a Unix filter. Print once, exit. No interaction.
-
-- [ ] **`suiseki view --with-tree`** — side-by-side static print: file content on the right, tree on the left, current file path highlighted in the tree. Within terminal width; falls back to file-only if width < 100 cols. ~50 extra LOC over the basic `view` command.
-
-- [ ] **Update README** to reflect the broader identity. New comparison: vs `bat`, vs `tree`, vs `eza`, in addition to vs `delta`. The naming paragraph already supports this — suiseki is the *art of viewing*, not just diff viewing.
-
-- [ ] **Tests for each subcommand**.
-
-### v2 sanity checks
-
-- [ ] Confirm `@pierre/trees` model imports cleanly without DOM globals (same check as v0 did for `@pierre/diffs`)
-- [ ] Default behavior (`suiseki` with no args) feels right in practice — try both "in a dirty repo" and "in a clean directory"
+v2 work — `view`, `tree`, and the subcommand router — lives in [`02-extending-suiseki.md`](./02-extending-suiseki.md). Start that plan once v1 has shipped.
 
 ---
 
