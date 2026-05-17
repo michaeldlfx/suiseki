@@ -8,11 +8,15 @@ type EnvironmentSnapshot = Record<string, string | undefined>
 
 const ENVIRONMENT_KEYS = [
   "HOME",
-  "SUISEKI_CHANGE_INDICATOR",
   "SUISEKI_CONFIG_DIR",
-  "SUISEKI_LINE_NUMBERS",
-  "SUISEKI_THEME",
-  "SUISEKI_VIEW",
+  "SUISEKI_PIERRE_CHANGE_INDICATOR",
+  "SUISEKI_PIERRE_DIFF_BACKGROUND",
+  "SUISEKI_PIERRE_FILE_HEADER",
+  "SUISEKI_PIERRE_HUNK_HEADER",
+  "SUISEKI_PIERRE_LINE_NUMBERS",
+  "SUISEKI_PIERRE_VIEW",
+  "SUISEKI_SHIKI_MAX_LINE_LENGTH",
+  "SUISEKI_SHIKI_THEME",
   "XDG_CONFIG_HOME",
 ]
 
@@ -45,76 +49,147 @@ describe("config.ts", () => {
       expect(loadedConfig).toEqual(DEFAULT_CONFIG)
     })
 
-    test("loads the first configured TOML file", async () => {
+    test("loads pierre and shiki sections from TOML", async () => {
       await mkdir(explicitConfigDirectory, { recursive: true })
       await writeFile(
         join(explicitConfigDirectory, "config.toml"),
         [
-          'theme = "github-light"',
+          "[pierre]",
           'view = "unified"',
           "line-numbers = false",
           'change-indicator = "bar"',
+          "diff-background = false",
+          "file-header = false",
+          'hunk-header = "none"',
+          "",
+          "[shiki]",
+          'theme = "github-light"',
+          "max-line-length = 5000",
         ].join("\n"),
       )
 
       const loadedConfig = await loadConfig()
 
       expect(loadedConfig).toEqual({
-        theme: "github-light",
-        view: "unified",
-        "line-numbers": false,
-        "change-indicator": "bar",
+        pierre: {
+          view: "unified",
+          "line-numbers": false,
+          "change-indicator": "bar",
+          "diff-background": false,
+          "file-header": false,
+          "hunk-header": "none",
+        },
+        shiki: {
+          theme: "github-light",
+          "max-line-length": 5000,
+        },
       })
     })
 
-    test("applies environment overrides above config files", async () => {
+    test("merges partial config with defaults", async () => {
       await mkdir(explicitConfigDirectory, { recursive: true })
       await writeFile(
         join(explicitConfigDirectory, "config.toml"),
-        [
-          'theme = "github-light"',
-          'view = "unified"',
-          "line-numbers = false",
-          'change-indicator = "bar"',
-        ].join("\n"),
+        ["[shiki]", 'theme = "github-light"'].join("\n"),
       )
-      Bun.env.SUISEKI_THEME = "github-dark"
-      Bun.env.SUISEKI_LINE_NUMBERS = "on"
-      Bun.env.SUISEKI_CHANGE_INDICATOR = "sign"
 
       const loadedConfig = await loadConfig()
 
-      expect(loadedConfig).toEqual({
-        theme: "github-dark",
-        view: "unified",
-        "line-numbers": true,
-        "change-indicator": "sign",
-      })
+      expect(loadedConfig.shiki.theme).toEqual("github-light")
+      expect(loadedConfig.pierre).toEqual(DEFAULT_CONFIG.pierre)
+      expect(loadedConfig.shiki["max-line-length"]).toEqual(
+        DEFAULT_CONFIG.shiki["max-line-length"],
+      )
     })
 
-    test("rejects unknown TOML keys", async () => {
+    test("applies pierre environment overrides above config file", async () => {
       await mkdir(explicitConfigDirectory, { recursive: true })
       await writeFile(
         join(explicitConfigDirectory, "config.toml"),
-        ['theme = "github-dark"', "passthrough = true"].join("\n"),
+        ["[pierre]", "line-numbers = false", 'change-indicator = "bar"'].join(
+          "\n",
+        ),
+      )
+      Bun.env.SUISEKI_PIERRE_LINE_NUMBERS = "on"
+      Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR = "sign"
+
+      const loadedConfig = await loadConfig()
+
+      expect(loadedConfig.pierre["line-numbers"]).toEqual(true)
+      expect(loadedConfig.pierre["change-indicator"]).toEqual("sign")
+    })
+
+    test("applies shiki environment overrides above config file", async () => {
+      await mkdir(explicitConfigDirectory, { recursive: true })
+      await writeFile(
+        join(explicitConfigDirectory, "config.toml"),
+        ["[shiki]", 'theme = "github-light"', "max-line-length = 5000"].join(
+          "\n",
+        ),
+      )
+      Bun.env.SUISEKI_SHIKI_THEME = "github-dark"
+      Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH = "500"
+
+      const loadedConfig = await loadConfig()
+
+      expect(loadedConfig.shiki.theme).toEqual("github-dark")
+      expect(loadedConfig.shiki["max-line-length"]).toEqual(500)
+    })
+
+    test("rejects unknown top-level TOML keys", async () => {
+      await mkdir(explicitConfigDirectory, { recursive: true })
+      await writeFile(
+        join(explicitConfigDirectory, "config.toml"),
+        ['theme = "github-dark"'].join("\n"),
       )
 
       await expect(loadConfig()).rejects.toThrow(ConfigError)
       await expect(loadConfig()).rejects.toThrow("unsupported key")
     })
 
-    test("rejects invalid environment booleans", async () => {
-      Bun.env.SUISEKI_LINE_NUMBERS = "sometimes"
+    test("rejects unknown keys inside pierre section", async () => {
+      await mkdir(explicitConfigDirectory, { recursive: true })
+      await writeFile(
+        join(explicitConfigDirectory, "config.toml"),
+        ["[pierre]", "unknown-option = true"].join("\n"),
+      )
 
       await expect(loadConfig()).rejects.toThrow(ConfigError)
-      await expect(loadConfig()).rejects.toThrow("SUISEKI_LINE_NUMBERS")
+      await expect(loadConfig()).rejects.toThrow("unsupported key")
+    })
+
+    test("rejects unknown keys inside shiki section", async () => {
+      await mkdir(explicitConfigDirectory, { recursive: true })
+      await writeFile(
+        join(explicitConfigDirectory, "config.toml"),
+        ["[shiki]", "unknown-option = true"].join("\n"),
+      )
+
+      await expect(loadConfig()).rejects.toThrow(ConfigError)
+      await expect(loadConfig()).rejects.toThrow("unsupported key")
+    })
+
+    test("rejects invalid pierre environment booleans", async () => {
+      Bun.env.SUISEKI_PIERRE_LINE_NUMBERS = "sometimes"
+
+      await expect(loadConfig()).rejects.toThrow(ConfigError)
+      await expect(loadConfig()).rejects.toThrow("SUISEKI_PIERRE_LINE_NUMBERS")
     })
 
     test("rejects unknown Shiki themes", async () => {
-      Bun.env.SUISEKI_THEME = "not-a-theme"
+      Bun.env.SUISEKI_SHIKI_THEME = "not-a-theme"
 
       await expect(loadConfig()).rejects.toThrow(ConfigError)
       await expect(loadConfig()).rejects.toThrow("bundled Shiki theme")
+    })
+
+    test("rejects invalid SUISEKI_SHIKI_MAX_LINE_LENGTH", async () => {
+      Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH = "abc"
+
+      await expect(loadConfig()).rejects.toThrow(ConfigError)
+      await expect(loadConfig()).rejects.toThrow(
+        "SUISEKI_SHIKI_MAX_LINE_LENGTH",
+      )
     })
   })
 })
