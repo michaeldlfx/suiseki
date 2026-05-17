@@ -11,6 +11,8 @@ export const vPierreConfig = type({
   "diff-background": "boolean",
   "file-header": "boolean",
   "hunk-header": '"full" | "none"',
+  "word-diff": '"word" | "char" | "none"',
+  "max-line-diff-length": "number",
 })
 
 export const vShikiConfig = type({
@@ -30,6 +32,8 @@ type PierreKey =
   | "diff-background"
   | "file-header"
   | "hunk-header"
+  | "word-diff"
+  | "max-line-diff-length"
 type ShikiKey = "theme" | "max-line-length"
 
 const TOP_LEVEL_KEYS = ["pierre", "shiki"] as const
@@ -40,6 +44,8 @@ const PIERRE_KEYS: PierreKey[] = [
   "diff-background",
   "file-header",
   "hunk-header",
+  "word-diff",
+  "max-line-diff-length",
 ]
 const SHIKI_KEYS: ShikiKey[] = ["theme", "max-line-length"]
 
@@ -58,6 +64,8 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
     "diff-background": true,
     "file-header": true,
     "hunk-header": "none",
+    "word-diff": "word",
+    "max-line-diff-length": 1000,
   },
   shiki: {
     theme: "github-dark",
@@ -223,6 +231,23 @@ function readPierreEnvironmentOverrides(): Partial<Record<PierreKey, unknown>> {
     overrides["hunk-header"] = Bun.env.SUISEKI_PIERRE_HUNK_HEADER
   }
 
+  if (
+    Bun.env.SUISEKI_PIERRE_WORD_DIFF != null &&
+    Bun.env.SUISEKI_PIERRE_WORD_DIFF !== ""
+  ) {
+    overrides["word-diff"] = Bun.env.SUISEKI_PIERRE_WORD_DIFF
+  }
+
+  if (
+    Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH != null &&
+    Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH !== ""
+  ) {
+    overrides["max-line-diff-length"] = parseEnvironmentPositiveNumber({
+      name: "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH",
+      value: Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH,
+    })
+  }
+
   return overrides
 }
 
@@ -240,15 +265,10 @@ function readShikiEnvironmentOverrides(): Partial<Record<ShikiKey, unknown>> {
     Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH != null &&
     Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH !== ""
   ) {
-    const parsedValue = Number(Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH)
-
-    if (Number.isNaN(parsedValue) || parsedValue <= 0) {
-      throw new ConfigError(
-        "SUISEKI_SHIKI_MAX_LINE_LENGTH must be a positive number",
-      )
-    }
-
-    overrides["max-line-length"] = parsedValue
+    overrides["max-line-length"] = parseEnvironmentPositiveNumber({
+      name: "SUISEKI_SHIKI_MAX_LINE_LENGTH",
+      value: Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH,
+    })
   }
 
   return overrides
@@ -278,6 +298,24 @@ export function parseEnvironmentBoolean({
   )
 }
 
+type ParseEnvironmentPositiveNumberParams = {
+  name: string
+  value: string
+}
+
+function parseEnvironmentPositiveNumber({
+  name,
+  value,
+}: ParseEnvironmentPositiveNumberParams): number {
+  const parsedValue = Number(value)
+
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    throw new ConfigError(`${name} must be a positive number`)
+  }
+
+  return parsedValue
+}
+
 function validateConfig(configuration: unknown, source: string): SuisekiConfig {
   const validatedConfiguration = vSuisekiConfig(configuration)
 
@@ -292,6 +330,25 @@ function validateConfig(configuration: unknown, source: string): SuisekiConfig {
       `Invalid suiseki configuration from ${source}: shiki.theme must be a bundled Shiki theme name`,
     )
   }
+
+  if (
+    !Number.isFinite(validatedConfiguration.pierre["max-line-diff-length"]) ||
+    validatedConfiguration.pierre["max-line-diff-length"] <= 0
+  ) {
+    throw new ConfigError(
+      `Invalid suiseki configuration from ${source}: pierre.max-line-diff-length must be a positive number`,
+    )
+  }
+
+  if (
+    !Number.isFinite(validatedConfiguration.shiki["max-line-length"]) ||
+    validatedConfiguration.shiki["max-line-length"] <= 0
+  ) {
+    throw new ConfigError(
+      `Invalid suiseki configuration from ${source}: shiki.max-line-length must be a positive number`,
+    )
+  }
+
   return validatedConfiguration
 }
 

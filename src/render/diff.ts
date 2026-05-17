@@ -5,6 +5,7 @@ import {
   type Hunk,
   parsePatchFiles,
 } from "@pierre/diffs"
+import { diffChars, diffWordsWithSpace } from "diff"
 import {
   type BundledLanguage,
   type BundledTheme,
@@ -12,6 +13,7 @@ import {
   getSingletonHighlighter,
   type Highlighter,
   type SpecialLanguage,
+  type ThemedToken,
 } from "shiki"
 import {
   emitPadding,
@@ -34,6 +36,7 @@ type DiffLineKind = "addition" | "context" | "deletion"
 
 type UnifiedDiffLine = {
   content: string
+  inlineHighlightRanges: InlineHighlightRange[]
   kind: DiffLineKind
   lineNumber: number
   noNewline: boolean
@@ -41,6 +44,7 @@ type UnifiedDiffLine = {
 
 type SplitDiffSide = {
   content: string
+  inlineHighlightRanges: InlineHighlightRange[]
   kind: DiffLineKind
   lineNumber: number
 }
@@ -83,6 +87,58 @@ type RenderSplitSideParams = {
   theme: BundledTheme
 }
 
+type InlineHighlightRange = {
+  end: number
+  start: number
+}
+
+type InlineHighlightRanges = {
+  additions: Map<number, InlineHighlightRange[]>
+  deletions: Map<number, InlineHighlightRange[]>
+}
+
+type InlineHighlightPair = {
+  additions: InlineHighlightRange[]
+  deletions: InlineHighlightRange[]
+}
+
+type ResolveInlineHighlightRangesParams = {
+  configuration: SuisekiConfig
+  file: FileDiffMetadata
+}
+
+type ComputeInlineHighlightRangesParams = {
+  additionLine: string
+  deletionLine: string
+  maxLineDiffLength: number
+  wordDiff: SuisekiConfig["pierre"]["word-diff"]
+}
+
+type RenderTokenizedContentParams = {
+  backgroundColor?: string
+  content: string
+  highlighter: Highlighter
+  inlineBackgroundColor?: string
+  inlineHighlightRanges: InlineHighlightRange[]
+  language: RenderLanguage
+  maxLineLength: number
+  theme: BundledTheme
+}
+
+type RenderTokenWithInlineHighlightsParams = {
+  backgroundColor?: string
+  inlineBackgroundColor?: string
+  inlineHighlightRanges: InlineHighlightRange[]
+  token: ThemedToken
+  tokenStart: number
+}
+
+type SliceInlineHighlightRangesParams = {
+  end: number
+  inlineHighlightRanges: InlineHighlightRange[]
+  start: number
+}
+
 type SplitLayout = {
   leftWidth: number
   rightWidth: number
@@ -118,6 +174,10 @@ export async function renderDiff(
       const language = await resolveLanguageForFile(highlighter, file.name)
       const lineNumberWidth = getLineNumberWidth(file)
       const emittedHunkIndexes = new Set<number>()
+      const inlineHighlightRanges = resolveInlineHighlightRanges({
+        configuration,
+        file,
+      })
       const fileLines: string[] = []
       let additionCount = 0
       let deletionCount = 0
@@ -156,7 +216,7 @@ export async function renderDiff(
                 configuration,
                 highlighter,
                 language,
-                line: resolveSplitDiffLine(file, line),
+                line: resolveSplitDiffLine(file, line, inlineHighlightRanges),
                 lineNumberWidth,
                 palette,
                 terminalWidth,
@@ -164,7 +224,11 @@ export async function renderDiff(
               }),
             )
           } else {
-            const unifiedLine = resolveUnifiedDiffLine(file, line)
+            const unifiedLine = resolveUnifiedDiffLine(
+              file,
+              line,
+              inlineHighlightRanges,
+            )
 
             fileLines.push(
               renderUnifiedDiffLine({
@@ -257,15 +321,21 @@ function renderUnifiedDiffLine({
     lineNumbers: configuration.pierre["line-numbers"],
     sign,
   })
-  const renderedContent = tokenizeLine({
+  const inlineBackgroundColor =
+    configuration.pierre["diff-background"] &&
+    line.inlineHighlightRanges.length > 0
+      ? getInlineBackgroundColor(line.kind, palette)
+      : undefined
+  const renderedContent = renderTokenizedContent({
+    backgroundColor,
     content: normalizedContent,
     highlighter,
+    inlineBackgroundColor,
+    inlineHighlightRanges: line.inlineHighlightRanges,
     language,
     maxLineLength: configuration.shiki["max-line-length"],
     theme,
   })
-    .map((token) => emitToken({ token, backgroundColor }))
-    .join("")
   // TODO: JS string length over-counts combining marks and under-counts CJK/emoji.
   // Use a Unicode-aware width function (e.g. string-width) for correct padding.
   const visibleLength = gutter.visibleLength + normalizedContent.length
@@ -340,6 +410,11 @@ function renderSplitSide({
   const backgroundColor = configuration.pierre["diff-background"]
     ? getBackgroundColor(side.kind, palette)
     : undefined
+  const inlineBackgroundColor =
+    configuration.pierre["diff-background"] &&
+    side.inlineHighlightRanges.length > 0
+      ? getInlineBackgroundColor(side.kind, palette)
+      : undefined
   const sign = getChangeSign(side.kind)
   const normalizedContent = stripLineEnding(side.content)
   const contentWidth = Math.max(
@@ -353,6 +428,7 @@ function renderSplitSide({
   const contentSegments = wrapContent(normalizedContent, contentWidth)
 
   return contentSegments.map((contentSegment, segmentIndex) => {
+    const contentOffset = segmentIndex * contentWidth
     const gutter = renderGutter({
       additionSignColor: palette.addition,
       backgroundColor,
@@ -363,15 +439,20 @@ function renderSplitSide({
       lineNumbers: configuration.pierre["line-numbers"],
       sign: segmentIndex === 0 ? sign : " ",
     })
-    const renderedContent = tokenizeLine({
+    const renderedContent = renderTokenizedContent({
+      backgroundColor,
       content: contentSegment,
       highlighter,
+      inlineBackgroundColor,
+      inlineHighlightRanges: sliceInlineHighlightRanges({
+        inlineHighlightRanges: side.inlineHighlightRanges,
+        start: contentOffset,
+        end: contentOffset + contentSegment.length,
+      }),
       language,
       maxLineLength: configuration.shiki["max-line-length"],
       theme,
     })
-      .map((token) => emitToken({ token, backgroundColor }))
-      .join("")
     const visibleLength = gutter.visibleLength + contentSegment.length
 
     return `${gutter.text}${renderedContent}${emitFixedWidthPadding({
@@ -432,6 +513,132 @@ function wrapContent(content: string, width: number): string[] {
   return contentSegments
 }
 
+function renderTokenizedContent({
+  backgroundColor,
+  content,
+  highlighter,
+  inlineBackgroundColor,
+  inlineHighlightRanges,
+  language,
+  maxLineLength,
+  theme,
+}: RenderTokenizedContentParams): string {
+  let tokenStart = 0
+
+  return tokenizeLine({
+    content,
+    highlighter,
+    language,
+    maxLineLength,
+    theme,
+  })
+    .map((token) => {
+      const renderedToken = renderTokenWithInlineHighlights({
+        backgroundColor,
+        inlineBackgroundColor,
+        inlineHighlightRanges,
+        token,
+        tokenStart,
+      })
+      tokenStart += token.content.length
+      return renderedToken
+    })
+    .join("")
+}
+
+function renderTokenWithInlineHighlights({
+  backgroundColor,
+  inlineBackgroundColor,
+  inlineHighlightRanges,
+  token,
+  tokenStart,
+}: RenderTokenWithInlineHighlightsParams): string {
+  if (inlineBackgroundColor == null || inlineHighlightRanges.length === 0) {
+    return emitToken({ token, backgroundColor })
+  }
+
+  const tokenEnd = tokenStart + token.content.length
+  const tokenSegments: string[] = []
+  let segmentStart = 0
+
+  for (const inlineHighlightRange of inlineHighlightRanges) {
+    const overlapStart = Math.max(tokenStart, inlineHighlightRange.start)
+    const overlapEnd = Math.min(tokenEnd, inlineHighlightRange.end)
+
+    if (overlapEnd <= overlapStart) {
+      continue
+    }
+
+    const localOverlapStart = overlapStart - tokenStart
+    const localOverlapEnd = overlapEnd - tokenStart
+    const localHighlightStart = Math.max(localOverlapStart, segmentStart)
+
+    if (localOverlapEnd <= localHighlightStart) {
+      continue
+    }
+
+    if (localHighlightStart > segmentStart) {
+      tokenSegments.push(
+        emitToken({
+          token: {
+            ...token,
+            content: token.content.slice(segmentStart, localHighlightStart),
+          },
+          backgroundColor,
+        }),
+      )
+    }
+
+    tokenSegments.push(
+      emitToken({
+        token: {
+          ...token,
+          content: token.content.slice(localHighlightStart, localOverlapEnd),
+        },
+        backgroundColor: inlineBackgroundColor,
+      }),
+    )
+
+    segmentStart = localOverlapEnd
+  }
+
+  if (segmentStart < token.content.length) {
+    tokenSegments.push(
+      emitToken({
+        token: {
+          ...token,
+          content: token.content.slice(segmentStart),
+        },
+        backgroundColor,
+      }),
+    )
+  }
+
+  return tokenSegments.join("")
+}
+
+function sliceInlineHighlightRanges({
+  end,
+  inlineHighlightRanges,
+  start,
+}: SliceInlineHighlightRangesParams): InlineHighlightRange[] {
+  const slicedRanges: InlineHighlightRange[] = []
+
+  for (const inlineHighlightRange of inlineHighlightRanges) {
+    const overlapStart = Math.max(start, inlineHighlightRange.start)
+    const overlapEnd = Math.min(end, inlineHighlightRange.end)
+
+    if (overlapEnd > overlapStart) {
+      slicedRanges.push({
+        start: overlapStart - start,
+        end: overlapEnd - start,
+      })
+    }
+  }
+
+  return slicedRanges
+}
+
 type TokenizeLineParams = {
   content: string
   highlighter: Highlighter
@@ -477,10 +684,13 @@ function tokenizeLine({
 function resolveUnifiedDiffLine(
   file: FileDiffMetadata,
   line: DiffLineCallbackProps,
+  inlineHighlightRanges: InlineHighlightRanges,
 ): UnifiedDiffLine {
   if (line.deletionLine != null && line.additionLine == null) {
     return {
       content: file.deletionLines[line.deletionLine.lineIndex] ?? "",
+      inlineHighlightRanges:
+        inlineHighlightRanges.deletions.get(line.deletionLine.lineIndex) ?? [],
       kind: "deletion",
       lineNumber: line.deletionLine.lineNumber,
       noNewline: line.deletionLine.noEOFCR,
@@ -490,6 +700,8 @@ function resolveUnifiedDiffLine(
   if (line.additionLine != null && line.deletionLine == null) {
     return {
       content: file.additionLines[line.additionLine.lineIndex] ?? "",
+      inlineHighlightRanges:
+        inlineHighlightRanges.additions.get(line.additionLine.lineIndex) ?? [],
       kind: "addition",
       lineNumber: line.additionLine.lineNumber,
       noNewline: line.additionLine.noEOFCR,
@@ -501,6 +713,7 @@ function resolveUnifiedDiffLine(
       file.additionLines[line.additionLine.lineIndex] ??
       file.deletionLines[line.deletionLine.lineIndex] ??
       "",
+    inlineHighlightRanges: [],
     kind: "context",
     lineNumber: line.additionLine.lineNumber,
     noNewline: line.additionLine.noEOFCR || line.deletionLine.noEOFCR,
@@ -510,12 +723,16 @@ function resolveUnifiedDiffLine(
 function resolveSplitDiffLine(
   file: FileDiffMetadata,
   line: DiffLineCallbackProps,
+  inlineHighlightRanges: InlineHighlightRanges,
 ): SplitDiffLine {
   const deletion: SplitDiffSide | undefined =
     line.deletionLine == null
       ? undefined
       : {
           content: file.deletionLines[line.deletionLine.lineIndex] ?? "",
+          inlineHighlightRanges:
+            inlineHighlightRanges.deletions.get(line.deletionLine.lineIndex) ??
+            [],
           kind: line.type === "change" ? "deletion" : "context",
           lineNumber: line.deletionLine.lineNumber,
         }
@@ -524,6 +741,9 @@ function resolveSplitDiffLine(
       ? undefined
       : {
           content: file.additionLines[line.additionLine.lineIndex] ?? "",
+          inlineHighlightRanges:
+            inlineHighlightRanges.additions.get(line.additionLine.lineIndex) ??
+            [],
           kind: line.type === "change" ? "addition" : "context",
           lineNumber: line.additionLine.lineNumber,
         }
@@ -532,6 +752,118 @@ function resolveSplitDiffLine(
     addition,
     deletion,
   }
+}
+
+function resolveInlineHighlightRanges({
+  configuration,
+  file,
+}: ResolveInlineHighlightRangesParams): InlineHighlightRanges {
+  const inlineHighlightRanges: InlineHighlightRanges = {
+    additions: new Map(),
+    deletions: new Map(),
+  }
+
+  if (
+    configuration.pierre["word-diff"] === "none" ||
+    !configuration.pierre["diff-background"]
+  ) {
+    return inlineHighlightRanges
+  }
+
+  for (const hunk of file.hunks) {
+    for (const hunkContent of hunk.hunkContent) {
+      if (hunkContent.type !== "change") {
+        continue
+      }
+
+      const pairedLineCount = Math.min(
+        hunkContent.deletions,
+        hunkContent.additions,
+      )
+
+      for (let lineOffset = 0; lineOffset < pairedLineCount; lineOffset++) {
+        const deletionLineIndex = hunkContent.deletionLineIndex + lineOffset
+        const additionLineIndex = hunkContent.additionLineIndex + lineOffset
+        const lineInlineHighlightRanges = computeInlineHighlightRanges({
+          additionLine: file.additionLines[additionLineIndex] ?? "",
+          deletionLine: file.deletionLines[deletionLineIndex] ?? "",
+          maxLineDiffLength: configuration.pierre["max-line-diff-length"],
+          wordDiff: configuration.pierre["word-diff"],
+        })
+
+        if (lineInlineHighlightRanges.deletions.length > 0) {
+          inlineHighlightRanges.deletions.set(
+            deletionLineIndex,
+            lineInlineHighlightRanges.deletions,
+          )
+        }
+
+        if (lineInlineHighlightRanges.additions.length > 0) {
+          inlineHighlightRanges.additions.set(
+            additionLineIndex,
+            lineInlineHighlightRanges.additions,
+          )
+        }
+      }
+    }
+  }
+
+  return inlineHighlightRanges
+}
+
+function computeInlineHighlightRanges({
+  additionLine,
+  deletionLine,
+  maxLineDiffLength,
+  wordDiff,
+}: ComputeInlineHighlightRangesParams): InlineHighlightPair {
+  const normalizedAdditionLine = stripLineEnding(additionLine)
+  const normalizedDeletionLine = stripLineEnding(deletionLine)
+  const inlineHighlightRanges: InlineHighlightPair = {
+    additions: [],
+    deletions: [],
+  }
+
+  if (
+    normalizedAdditionLine.length > maxLineDiffLength ||
+    normalizedDeletionLine.length > maxLineDiffLength
+  ) {
+    return inlineHighlightRanges
+  }
+
+  const changes =
+    wordDiff === "char"
+      ? diffChars(normalizedDeletionLine, normalizedAdditionLine)
+      : diffWordsWithSpace(normalizedDeletionLine, normalizedAdditionLine)
+  let additionOffset = 0
+  let deletionOffset = 0
+
+  for (const change of changes) {
+    const valueLength = change.value.length
+
+    if (change.added) {
+      inlineHighlightRanges.additions.push({
+        start: additionOffset,
+        end: additionOffset + valueLength,
+      })
+      additionOffset += valueLength
+      continue
+    }
+
+    if (change.removed) {
+      inlineHighlightRanges.deletions.push({
+        start: deletionOffset,
+        end: deletionOffset + valueLength,
+      })
+      deletionOffset += valueLength
+      continue
+    }
+
+    additionOffset += valueLength
+    deletionOffset += valueLength
+  }
+
+  return inlineHighlightRanges
 }
 
 async function resolveLanguageForFile(
@@ -831,6 +1163,21 @@ function getBackgroundColor(
 
   if (kind === "deletion") {
     return palette.deletionBackground
+  }
+
+  return undefined
+}
+
+function getInlineBackgroundColor(
+  kind: DiffLineKind,
+  palette: ThemePalette,
+): string | undefined {
+  if (kind === "addition") {
+    return palette.additionInlineBackground
+  }
+
+  if (kind === "deletion") {
+    return palette.deletionInlineBackground
   }
 
   return undefined

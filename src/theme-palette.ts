@@ -7,7 +7,9 @@ export type ThemePalette = {
   deletion: string
   accent: string
   additionBackground: string
+  additionInlineBackground: string
   deletionBackground: string
+  deletionInlineBackground: string
   separatorForeground: string
   separatorBackground: string
 }
@@ -62,12 +64,22 @@ export function resolveThemePalette({
     additionBgFromTheme != null
       ? compositeOver(additionBgFromTheme, background)
       : blendColors(background, addition, 0.15)
+  const additionInlineBackground = blendColors(
+    additionBackground,
+    addition,
+    0.3,
+  )
 
   const deletionBgFromTheme = colors["diffEditor.removedTextBackground"]
   const deletionBackground =
     deletionBgFromTheme != null
       ? compositeOver(deletionBgFromTheme, background)
       : blendColors(background, deletion, 0.15)
+  const deletionInlineBackground = blendColors(
+    deletionBackground,
+    deletion,
+    0.3,
+  )
 
   const separatorForeground = blendColors(foreground, background, 0.35)
   const separatorBackground = blendColors(background, foreground, 0.12)
@@ -79,7 +91,9 @@ export function resolveThemePalette({
     deletion,
     accent,
     additionBackground,
+    additionInlineBackground,
     deletionBackground,
+    deletionInlineBackground,
     separatorForeground,
     separatorBackground,
   }

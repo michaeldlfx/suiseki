@@ -75,6 +75,8 @@ change-indicator = "sign"    # SUISEKI_PIERRE_CHANGE_INDICATOR (sign | bar | bac
 diff-background = true       # SUISEKI_PIERRE_DIFF_BACKGROUND
 file-header = true           # SUISEKI_PIERRE_FILE_HEADER
 hunk-header = "none"         # SUISEKI_PIERRE_HUNK_HEADER (full | none)
+word-diff = "word"           # SUISEKI_PIERRE_WORD_DIFF (word | char | none)
+max-line-diff-length = 1000  # SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH
 
 [shiki]
 theme = "github-dark"        # SUISEKI_SHIKI_THEME (any bundled Shiki theme)

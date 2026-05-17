@@ -14,7 +14,9 @@ const ENVIRONMENT_KEYS = [
   "SUISEKI_PIERRE_FILE_HEADER",
   "SUISEKI_PIERRE_HUNK_HEADER",
   "SUISEKI_PIERRE_LINE_NUMBERS",
+  "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH",
   "SUISEKI_PIERRE_VIEW",
+  "SUISEKI_PIERRE_WORD_DIFF",
   "SUISEKI_SHIKI_MAX_LINE_LENGTH",
   "SUISEKI_SHIKI_THEME",
   "XDG_CONFIG_HOME",
@@ -61,6 +63,8 @@ describe("config.ts", () => {
           "diff-background = false",
           "file-header = false",
           'hunk-header = "none"',
+          'word-diff = "char"',
+          "max-line-diff-length = 250",
           "",
           "[shiki]",
           'theme = "github-light"',
@@ -78,6 +82,8 @@ describe("config.ts", () => {
           "diff-background": false,
           "file-header": false,
           "hunk-header": "none",
+          "word-diff": "char",
+          "max-line-diff-length": 250,
         },
         shiki: {
           theme: "github-light",
@@ -112,11 +118,15 @@ describe("config.ts", () => {
       )
       Bun.env.SUISEKI_PIERRE_LINE_NUMBERS = "on"
       Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR = "sign"
+      Bun.env.SUISEKI_PIERRE_WORD_DIFF = "none"
+      Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH = "400"
 
       const loadedConfig = await loadConfig()
 
       expect(loadedConfig.pierre["line-numbers"]).toEqual(true)
       expect(loadedConfig.pierre["change-indicator"]).toEqual("sign")
+      expect(loadedConfig.pierre["word-diff"]).toEqual("none")
+      expect(loadedConfig.pierre["max-line-diff-length"]).toEqual(400)
     })
 
     test("applies shiki environment overrides above config file", async () => {
@@ -189,6 +199,15 @@ describe("config.ts", () => {
       await expect(loadConfig()).rejects.toThrow(ConfigError)
       await expect(loadConfig()).rejects.toThrow(
         "SUISEKI_SHIKI_MAX_LINE_LENGTH",
+      )
+    })
+
+    test("rejects invalid SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH", async () => {
+      Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH = "0"
+
+      await expect(loadConfig()).rejects.toThrow(ConfigError)
+      await expect(loadConfig()).rejects.toThrow(
+        "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH",
       )
     })
   })

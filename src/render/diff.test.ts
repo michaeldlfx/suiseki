@@ -14,9 +14,24 @@ index 1111111..2222222 100644
 +  const message = \`Hello \${name}\`
 +  console.info(message)
  }
-
+${" "}
  greet("Ada")
 `
+
+const INLINE_DIFF = `diff --git a/src/message.ts b/src/message.ts
+index 1111111..2222222 100644
+--- a/src/message.ts
++++ b/src/message.ts
+@@ -1 +1 @@
+-const message = "hello old world"
++const message = "hello new world"
+`
+
+const ANSI_ESCAPE = String.fromCharCode(27)
+const BACKGROUND_ESCAPE_PATTERN = new RegExp(
+  `${ANSI_ESCAPE}\\[[0-9;]*48;2;[0-9;]+m`,
+  "g",
+)
 
 function configWith(overrides: {
   pierre?: Partial<SuisekiConfig["pierre"]>
@@ -26,6 +41,10 @@ function configWith(overrides: {
     pierre: { ...DEFAULT_CONFIG.pierre, ...(overrides.pierre ?? {}) },
     shiki: { ...DEFAULT_CONFIG.shiki, ...(overrides.shiki ?? {}) },
   }
+}
+
+function countBackgroundEscapes(value: string): number {
+  return value.match(BACKGROUND_ESCAPE_PATTERN)?.length ?? 0
 }
 
 describe("renderDiff", () => {
@@ -304,5 +323,77 @@ index 1111111..2222222 100644
       .filter((line) => line.includes("xxxxxxxxxx"))
 
     expect(wrappedContentLines.length > 1).toEqual(true)
+  })
+
+  test("renders inline word diff highlights for changed line pairs", async () => {
+    const renderedDiff = await renderDiff(INLINE_DIFF, DEFAULT_CONFIG)
+    const renderedDiffWithoutInlineHighlights = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { "word-diff": "none" } }),
+    )
+
+    expect(stripAnsi(renderedDiff)).toEqual(
+      stripAnsi(renderedDiffWithoutInlineHighlights),
+    )
+    expect(
+      countBackgroundEscapes(renderedDiff) >
+        countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
+    ).toEqual(true)
+  })
+
+  test("renders inline word diff highlights in split view", async () => {
+    const renderedDiff = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { view: "split" } }),
+    )
+    const renderedDiffWithoutInlineHighlights = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { view: "split", "word-diff": "none" } }),
+    )
+
+    expect(stripAnsi(renderedDiff)).toEqual(
+      stripAnsi(renderedDiffWithoutInlineHighlights),
+    )
+    expect(
+      countBackgroundEscapes(renderedDiff) >
+        countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
+    ).toEqual(true)
+  })
+
+  test("renders char diff highlights differently from word diff highlights", async () => {
+    const compactDiff = `diff --git a/compact.txt b/compact.txt
+index 1111111..2222222 100644
+--- a/compact.txt
++++ b/compact.txt
+@@ -1 +1 @@
+-abc
++axc
+`
+    const renderedWordDiff = await renderDiff(compactDiff, DEFAULT_CONFIG)
+    const renderedCharDiff = await renderDiff(
+      compactDiff,
+      configWith({ pierre: { "word-diff": "char" } }),
+    )
+
+    expect(stripAnsi(renderedCharDiff)).toEqual(stripAnsi(renderedWordDiff))
+    expect(renderedCharDiff).not.toEqual(renderedWordDiff)
+  })
+
+  test("skips inline diff highlights for lines above pierre.max-line-diff-length", async () => {
+    const renderedDiff = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { "max-line-diff-length": 10 } }),
+    )
+    const renderedDiffWithoutInlineHighlights = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { "word-diff": "none" } }),
+    )
+
+    expect(stripAnsi(renderedDiff)).toEqual(
+      stripAnsi(renderedDiffWithoutInlineHighlights),
+    )
+    expect(countBackgroundEscapes(renderedDiff)).toEqual(
+      countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
+    )
   })
 })
