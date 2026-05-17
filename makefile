@@ -23,7 +23,6 @@ run: ## run project as typescript sources
 	bun dev
 
 build: ## build binary
-	mkdir -p bin
 	bun build $(ENTRYPOINT) --compile --outfile $(BINARY)
 
 start: ## run build binary

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "groupName": "non-major",
+      "groupSlug": "non-major",
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest",
+        "lockFileMaintenance"
+      ],
+      "automerge": false,
+      "automergeType": "pr"
+    },
+    {
+      "groupName": "major",
+      "groupSlug": "major",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "automergeType": "pr"
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "schedule": ["* * * * 1-5"],
+  "timezone": "Europe/Berlin",
+  "reviewersFromCodeOwners": true
+}

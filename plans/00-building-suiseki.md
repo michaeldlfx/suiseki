@@ -100,17 +100,15 @@ suiseki/                  # local dev dir; GitHub repo is <handle>/suiseki-cli
 │   ├── cli.ts           # entry — v0: linear; v1: arg parsing; v2: subcommand router
 │   ├── config.ts        # TOML loading + resolution order
 │   ├── render/
-│   │   ├── diff.ts      # v0+: diff pipeline
-│   │   ├── file.ts      # v2+: plain file pipeline
-│   │   └── tree.ts      # v2+: static tree pipeline
+│   │   ├── diff.ts       # v0+: diff pipeline
+│   │   ├── diff.test.ts  # colocated Bun tests
+│   │   ├── file.ts       # v2+: plain file pipeline
+│   │   ├── file.test.ts  # v2
+│   │   ├── tree.ts       # v2+: static tree pipeline
+│   │   └── tree.test.ts  # v2
 │   ├── ansi.ts          # token → ANSI emit with optional bg overlay
 │   ├── gutter.ts        # line numbers, signs, side columns
 │   └── types.ts
-├── test/
-│   ├── render-diff.test.ts
-│   ├── render-file.test.ts     # v2
-│   ├── render-tree.test.ts     # v2
-│   └── fixtures/
 ├── bin/
 │   └── suiseki          # gitignored local dev binary from `make build`
 └── dist/                # gitignored release artifacts from multi-target builds
@@ -127,7 +125,7 @@ suiseki/                  # local dev dir; GitHub repo is <handle>/suiseki-cli
 | package.json `name`         | `suiseki-cli` (if ever published to npm), with `bin: { suiseki: "..." }` |
 | Config dir                  | `~/.suiseki/` (and XDG: `$XDG_CONFIG_HOME/suiseki/`) |
 | Per-repo config             | `.suiseki.toml`             |
-| Env var prefix              | `SUISEKI_*` (e.g. `SUISEKI_THEME`, `SUISEKI_CONFIG_DIR`) |
+| Env var prefix              | `SUISEKI_*` (e.g. `SUISEKI_SHIKI_THEME`, `SUISEKI_PIERRE_VIEW`, `SUISEKI_CONFIG_DIR`) |
 
 ---
 
@@ -137,19 +135,29 @@ suiseki/                  # local dev dir; GitHub repo is <handle>/suiseki-cli
 
 ### v0 progress checklist
 
-- [ ] Commit the baseline scaffold: Bun/TypeScript project, `make` commands, `src/cli.ts`, README, AGENTS, and this plan.
-- [ ] Install renderer dependencies: `@pierre/diffs`, Shiki, `ansis`, and `smol-toml`.
-- [ ] Confirm `@pierre/diffs` imports cleanly in Bun and compiled binaries without DOM globals.
-- [ ] Confirm `iterateOverDiff` callback shape against the Pierre source before building renderer logic around it.
-- [ ] Implement CLI input selection: stdin patch input or `git diff` subprocess output.
-- [ ] Support Git pager mode so `core.pager = suiseki` can render normal `git diff`, `git show`, and related commands without manual piping.
-- [ ] Implement config loading with `smol-toml`, Arktype validation, environment overrides, and built-in defaults.
-- [ ] Map Pierre and Shiki options into explicit `suiseki` config keys without arbitrary passthrough.
-- [ ] Implement unified diff rendering with file headers, hunk headers, Shiki token colors, and diff backgrounds.
-- [ ] Implement ANSI emission with foreground/background composition, font styles, line padding, and reset safety.
-- [ ] Implement gutters with line numbers, change signs, and stable width calculation.
-- [ ] Add fixtures and Bun tests for the basic unified diff renderer.
-- [ ] Build `bin/suiseki`, run it against a real diff, and keep the compiled binary size under the sanity-check threshold.
+- [x] Commit the baseline scaffold: Bun/TypeScript project, `make` commands, `src/cli.ts`, README, AGENTS, and this plan.
+- [x] Install renderer dependencies: `@pierre/diffs`, Shiki, `ansis`, and `smol-toml`.
+- [x] Confirm `@pierre/diffs` parser imports cleanly in Bun and compiled binaries without DOM globals; vendor non-public `iterateOverDiff`.
+- [x] Confirm `iterateOverDiff` callback shape against the Pierre source before building renderer logic around it.
+- [x] Implement CLI input selection: stdin patch input or `git diff` subprocess output.
+- [x] Support Git pager mode so `core.pager = suiseki` can render normal `git diff`, `git show`, and related commands without manual piping.
+- [x] Implement config loading with `smol-toml`, Arktype validation, environment overrides, and built-in defaults.
+- [x] Map Pierre and Shiki options into explicit `suiseki` config keys without arbitrary passthrough.
+- [x] Implement unified diff rendering with file headers, hunk headers, Shiki token colors, and diff backgrounds.
+- [x] Implement ANSI emission with foreground/background composition, font styles, line padding, and reset safety.
+- [x] Implement gutters with line numbers, change signs, and stable width calculation.
+- [x] Add colocated Bun tests for the basic unified diff renderer.
+- [x] Build `bin/suiseki`, run it against a real diff, and keep the compiled binary size under the sanity-check threshold.
+
+### v0 polish — align with Pierre's diffs.com rendering
+
+Remaining rendering gaps to close before v0 feels right. These should be addressed in order:
+
+- [x] **Blank line between files.** Add a visual separator (empty line) between the end of one file's diff and the next file's header.
+- [x] **File header color.** Changed from blue (`#79b8ff`) to neutral white (`#e1e4e8`), matching Pierre's default foreground.
+- [x] **File status icon in header.** Uses `file.type` from Pierre's `ChangeTypes`: `Δ` change, `+` new, `-` deleted, `→` renamed. Color-coded per status.
+- [x] **Path vs filename display.** Directory dimmed (`#8b949e`), filename bold white (`#e1e4e8`). Renames show both paths with `→` separator.
+- [x] **Pager support.** Spawns `less -R --no-init --quit-if-one-screen` when stdout is a TTY. `--no-pager` flag or `SUISEKI_NO_PAGER=1` to disable.
 
 ### 1. Scaffold
 
@@ -192,31 +200,32 @@ Git integration requirement: `suiseki` should work as `core.pager`, not only as 
 
 Resolution order (highest → lowest):
 1. CLI flags *(skip in v0)*
-2. Env vars (`SUISEKI_THEME`, `SUISEKI_VIEW`, etc.)
+2. Env vars (`SUISEKI_SHIKI_THEME`, `SUISEKI_PIERRE_VIEW`, etc.)
 3. `$SUISEKI_CONFIG_DIR/config.toml`
 4. `$XDG_CONFIG_HOME/suiseki/config.toml` (defaulting to `~/.config/suiseki/`)
 5. `~/.suiseki/config.toml`
 6. Built-in defaults
 
-Parse with `smol-toml`. On first run when nothing exists, write a commented default `config.toml` to the resolved dir (XDG path preferred).
+Parse with `smol-toml`. Keep config loading read-only in line with the project invariant: do not create or modify config files on first run. A future explicit `suiseki init` command may write a commented default config if the read-only CLI scope is intentionally expanded for that command.
 
 Default config:
 ```toml
-theme = "github-dark"        # any Shiki bundled theme
+[pierre]
 view = "unified"             # unified | split (split=v1)
 line-numbers = true
 change-indicator = "sign"    # sign | bar | background
+diff-background = true       # colored backgrounds on changed lines
+file-header = true           # show file header
+hunk-header = "none"         # none | full (none matches Pierre's default)
+
+[shiki]
+theme = "github-dark"        # any Shiki bundled theme
+max-line-length = 10000      # skip syntax highlighting for lines longer than this
 ```
 
-Config schema rule: support config and CLI flags through explicit, typed keys, not arbitrary passthrough. The config should cover `suiseki` renderer behavior (`theme`, `view`, gutters, pager, color mode, inline diff, wrapping) and should also expose Pierre-derived options where they are renderer-agnostic and useful in a terminal. Before implementing config deeply, map Pierre's public flags/options into a friendly terminal surface and classify each one:
+Config schema rule: every config key lives under `[pierre]` or `[shiki]` — suiseki does not invent its own options but exposes Pierre and Shiki options through explicit, validated, namespaced keys. No arbitrary passthrough: unknown TOML keys are rejected, and every supported key is validated with Arktype. Keys should be overridable by a CLI flag in v1 and documented in the README config reference. Env var convention: `SUISEKI_PIERRE_<KEY>` and `SUISEKI_SHIKI_<KEY>`.
 
-1. **First-class `suiseki` key** — core user-facing behavior, such as theme, view mode, line numbers, merge conflict rendering, or filetype detection.
-2. **Namespaced Pierre surface key** — useful lower-level Pierre behavior that should remain identifiable as Pierre-derived, likely under `[pierre]`.
-3. **Rejected** — DOM, web-component, interactive, or UI-state behavior that conflicts with the Unix-filter model.
-
-Every supported key must be validated with Arktype, documented in the README config reference, and overridable by a CLI flag in v1. Do not silently forward unknown TOML keys into Pierre APIs.
-
-Theming rule: `theme` should resolve to a Shiki bundled theme, a custom Shiki JSON theme, or a Pierre-provided Shiki theme such as a future `@pierre/theme` import. Diff backgrounds and gutters are terminal overlays layered around Shiki token colors, not a replacement theme system.
+Theming rule: `shiki.theme` should resolve to a Shiki bundled theme, a custom Shiki JSON theme, or a Pierre-provided Shiki theme such as a future `@pierre/theme` import. Diff backgrounds and gutters are terminal overlays layered around Shiki token colors, not a replacement theme system.
 
 ### 4. Render pipeline (`src/render/diff.ts`)
 
@@ -287,21 +296,22 @@ Prepend to each rendered line:
 ```
 Sign is `+` / `-` / ` `. Line number padded to width of largest line number in file. Sign-colored (green/red/dim) so it stays legible even if bg colors are disabled.
 
-### 7. Tests (`test/render-diff.test.ts`)
+### 7. Tests (`src/render/diff.test.ts`)
 
 ```ts
 import { test, expect } from 'bun:test'
-import { renderDiff } from '../src/render/diff'
-import { readFileSync } from 'fs'
+import { renderDiff } from './diff'
+
+const patch = `diff --git a/src/example.ts b/src/example.ts
+...`
 
 test('renders basic unified diff', async () => {
-  const patch = readFileSync('test/fixtures/basic.diff', 'utf8')
   const out = await renderDiff(patch, { theme: 'github-dark', view: 'unified', 'line-numbers': true, 'change-indicator': 'sign' })
-  expect(out).toMatchSnapshot()
+  expect(out).toContain('\x1b[48;2;14;46;14m')
 })
 ```
 
-Generate fixture: `cd ~/some-repo && git diff HEAD~1 HEAD > test/fixtures/basic.diff`.
+Keep small renderer fixtures inline in colocated tests. Add fixture files only when the input becomes too large to read clearly in the test body.
 
 Run: `bun test`.
 
@@ -324,9 +334,65 @@ bun run build
 
 ### v0 sanity checks (first 10 minutes)
 
-- [ ] `import { parsePatchFiles, iterateOverDiff } from '@pierre/diffs'` resolves without crashing on a `document`/`window` reference at module load
-- [ ] Local compiled binary `bin/suiseki` stays under ~80 MB after tree-shaking. If much larger, vendor `parsePatchFiles.ts` + `iterateOverDiff.ts` + `types.ts` from the Pierre repo into `vendored/pierre/` with the Apache LICENSE preserved.
-- [ ] Confirm `iterateOverDiff` signature against the Pierre repo's `src/utils/iterateOverDiff.ts`
+- [x] `parsePatchFiles` from `@pierre/diffs` resolves without crashing on a `document`/`window` reference at module load.
+- [x] Local compiled binary `bin/suiseki` stays under ~80 MB after tree-shaking. If much larger, vendor `parsePatchFiles.ts` + `iterateOverDiff.ts` + `types.ts` from the Pierre repo into `vendored/pierre/` with the Apache LICENSE preserved.
+- [x] Confirm `iterateOverDiff` signature against the Pierre repo's `src/utils/iterateOverDiff.ts`
+
+### Source references
+
+Keep sibling checkouts of Pierre at `../pierre` and Shiki at `../shiki` during development and treat them as read-only reference material. These are useful for checking API surfaces, type definitions, and theme implementations. The canonical source for the callback contract is:
+
+```text
+../pierre/packages/diffs/src/utils/iterateOverDiff.ts
+```
+
+As of `@pierre/diffs@1.1.22`, the top-level package import exposes `parsePatchFiles` but does not expose `iterateOverDiff`, and the package `exports` map blocks direct imports from `dist/utils/iterateOverDiff.js`. For v0, verify the callback shape against the sibling source checkout, then either walk Pierre's parsed hunk model locally or vendor the small renderer-agnostic utility with the Apache license preserved. Do not build renderer logic around private package subpaths.
+
+### Pierre and Shiki option mapping
+
+Every config key lives under `[pierre]` or `[shiki]`. Suiseki does not claim Pierre or Shiki options as its own — it exposes them honestly under their respective namespaces.
+
+#### `[pierre]` keys (v0)
+
+| Pierre option | Suiseki key | Notes |
+|---|---|---|
+| `BaseDiffOptions.diffStyle` | `pierre.view` | `"unified"` in v0; `"split"` in v1 |
+| `BaseDiffOptions.diffIndicators` | `pierre.change-indicator` | `classic→sign`, `bars→bar`, `none→background` |
+| `BaseCodeOptions.disableLineNumbers` | `pierre.line-numbers` | Inverted boolean |
+| `BaseDiffOptions.disableBackground` | `pierre.diff-background` | Inverted boolean, controls line bg colors |
+| `BaseCodeOptions.disableFileHeader` | `pierre.file-header` | Inverted boolean |
+| `BaseDiffOptions.hunkSeparators` | `pierre.hunk-header` | Simplified to `"full"` / `"none"` |
+
+#### `[pierre]` keys (deferred to v1)
+
+| Pierre option | Suiseki key | Notes |
+|---|---|---|
+| `collapsedContextThreshold` | `pierre.context-lines` | Context line count |
+| `expandUnchanged` | `pierre.expand-unchanged` | Show all context |
+| `lineDiffType` | `pierre.word-diff` | `"word"` / `"char"` / `"none"` |
+| `maxLineDiffLength` | `pierre.max-line-diff-length` | Performance guard for word diff |
+| `themeType` | `pierre.theme-type` | `"dark"` / `"light"` for dual-theme records |
+
+#### `[shiki]` keys (v0)
+
+| Shiki option | Suiseki key | Notes |
+|---|---|---|
+| `theme` parameter | `shiki.theme` | Bundled Shiki theme name |
+| `tokenizeMaxLineLength` | `shiki.max-line-length` | Performance guard; falls back to plaintext |
+
+#### Rejected options (incompatible with Unix filter model)
+
+| Option | Reason |
+|---|---|
+| `overflow` | Terminal handles wrapping natively |
+| `preferredHighlighter` | Always shiki-js via Bun |
+| `useCSSClasses` | DOM-specific |
+| `useTokenTransformer` | DOM-specific |
+| `unsafeCSS` | DOM-specific |
+| `collapsed` | Interactive UI state |
+| `disableVirtualizationBuffers` | DOM virtualization |
+| `expansionLineCount` | Interactive expansion |
+| `parseDiffOptions` | Internal jsdiff tuning |
 
 ---
 
