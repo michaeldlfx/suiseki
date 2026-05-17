@@ -79,9 +79,10 @@ describe("merge-conflict.ts", () => {
         content: TWO_WAY_CONFLICT,
       })
       const plain = stripAnsi(rendered)
+      const templateInterpolation = "$" + "{name}"
 
       expect(plain).toContain('console.log("Hello " + name)')
-      expect(plain).toContain("console.log(`Hello ${name}`)")
+      expect(plain).toContain(`console.log(\`Hello ${templateInterpolation}\`)`)
       expect(plain).toContain(" 2 -")
       expect(plain).toContain(" 2 +")
     })
