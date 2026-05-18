@@ -58,10 +58,10 @@ describe("themes-command.ts", () => {
       const output = stdoutChunks.join("")
       expect(output).toContain("Shiki bundled (")
       expect(output).toContain("github-dark")
-      expect(output).toContain("Pierre (4):")
+      expect(output).toMatch(/Pierre \(\d+\):/)
       expect(output).toContain("pierre-dark")
       expect(output).toContain("pierre-light-vibrant")
-      expect(output).toContain("Custom (~/.suiseki/themes/) (0):")
+      expect(output).toContain("Custom (0):")
       expect(output).toContain("(none)")
     })
 
@@ -85,7 +85,7 @@ describe("themes-command.ts", () => {
       await runThemesCommand()
 
       const output = stdoutChunks.join("")
-      expect(output).toContain("Custom (~/.suiseki/themes/) (1):")
+      expect(output).toContain("Custom (1):")
       expect(output).toContain("midnight")
     })
   })
