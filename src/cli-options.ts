@@ -90,7 +90,10 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
     const [flag, inlineValue] = splitInlineValue(argument)
     const valueTarget = VALUE_FLAGS[flag]
     if (valueTarget != null) {
-      const needsNextArgument = inlineValue == null || inlineValue === ""
+      if (inlineValue === "") {
+        throw new CliOptionsError(`${flag} requires a value`)
+      }
+      const needsNextArgument = inlineValue == null
       const rawValue = needsNextArgument
         ? readNextFlagValue({
             argumentsFromCli,
