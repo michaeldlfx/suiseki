@@ -1,6 +1,6 @@
 import { stripAnsi } from "./ansi"
 import { parseCliOptions } from "./cli-options"
-import { loadConfig, parseEnvironmentBoolean } from "./config"
+import { loadConfig, readSuisekiEnv } from "./config"
 import { renderDiff } from "./render/diff"
 import {
   containsMergeConflictMarkers,
@@ -38,14 +38,8 @@ async function main(): Promise<void> {
     return
   }
 
-  const noPager =
-    parsedOptions.noPager ||
-    (Bun.env.SUISEKI_NO_PAGER != null &&
-      Bun.env.SUISEKI_NO_PAGER !== "" &&
-      parseEnvironmentBoolean({
-        name: "SUISEKI_NO_PAGER",
-        value: Bun.env.SUISEKI_NO_PAGER,
-      }))
+  const suisekiEnv = readSuisekiEnv()
+  const noPager = parsedOptions.noPager || suisekiEnv.SUISEKI_NO_PAGER === true
   const configuration = await loadConfig({
     overrides: parsedOptions.overrides,
   })
@@ -84,12 +78,11 @@ function getHelpText(): string {
     "",
     "Examples:",
     "  suiseki --staged",
-    "  suiseki --view split --theme github-light HEAD~1",
+    "  suiseki --view split --theme pierre-light HEAD~1",
     "",
     "Git setup:",
     "  git config --global pager.diff 'suiseki'",
     "  git config --global pager.show 'suiseki'",
-    "  git config --global interactive.diffFilter 'suiseki --color-only'",
     "",
     "Options:",
     "  --view <unified|split>",
@@ -104,7 +97,6 @@ function getHelpText(): string {
     "  --max-line-length <number>",
     "  --no-pager",
     "  --no-color   (also honors NO_COLOR env var)",
-    "  --color-only",
     "",
     "More:",
     "  Config: ~/.suiseki/config.toml or .suiseki.toml (per-repo). Env vars: SUISEKI_*.",
