@@ -6,11 +6,9 @@
 
 A modern terminal renderer for code, built on Pierre's parsing logic and Shiki's syntax/theme system. Phases:
 
-- [ ] **v0** — unified-view diff renderer that works locally. Couple of hours.
-- [ ] **v1** — proper `delta` alternative. Split view, inline word diff, themes, pager integration, binaries on GH Releases. Real release.
-- [ ] **v2** — expand beyond diffs to file viewing (`cat`/`bat` alternative - maybe we suggest aliasing as `sat` (s for `suiseki`, at to mirrow `cat`/`bat`)? or provide that out of the box?) and static tree printing. "Pierre's renderer, in your terminal."
-
-**Why this niche is open:** `delta` (Rust + syntect) uses dated Sublime grammars and a fixed theme set. `difftastic` is AST-based and barely themes. Shiki has thousands of themes and best-in-class TextMate grammar support, but no diff-aware CLI uses it. Pierre's parsing and tree logic is Apache 2.0, battle-tested, and renderer-agnostic at the module level, and Pierre already builds around Shiki for syntax and theming. `suiseki` is the friendly terminal surface for those pieces.
+- [x] **v0** — unified-view diff renderer that works locally. Couple of hours.
+- [ ] **v1** — practical terminal diff renderer. Split view, inline word diff, themes, pager integration, binaries on GH Releases. Real release. *(features done; README polish in this file + publishing in `01-publishing-suiseki.md` outstanding)*
+- [ ] **v2** — expand beyond diffs to file viewing (`cat`/`bat` alternative — maybe we suggest aliasing as `sat` (s for `suiseki`, at to mirror `cat`/`bat`)? or provide that out of the box?) and static tree printing. "Pierre's renderer, in your terminal." *(tracked in `02-extending-suiseki.md`)*
 
 ## Progress tracking
 
@@ -24,6 +22,8 @@ Use this file as the durable cross-session source of truth.
 - Keep the parent phase unchecked until all of its child items are implemented, verified, and committed.
 - If a plan item changes scope, update the unchecked text before implementing rather than checking an obsolete item.
 - For handoff across sessions, leave the next unchecked item obvious and avoid relying on chat history.
+- The roadmap spans three files: `00-building-suiseki.md` (this file — v0/v1 features, v1 README polish, project-wide architecture and out-of-scope), `01-publishing-suiseki.md` (v1 perf pass + release engineering: binaries, GH Releases, Homebrew, install script, npm decision), and `02-extending-suiseki.md` (v2 work — `view`, `tree`, subcommand router, v2 README update). Treat each file as the authoritative checklist for its own scope.
+- When working in `01-` or `02-`, edit those files for the in-progress checkboxes, **and** when you complete a milestone that satisfies a high-level phase bullet at the top of this file (the v0/v1/v2 list in [§ Pitch](#pitch)), come back here to check it off in the same commit. v1 stays unchecked until all v1 features, the README polish in this file, and `01-publishing-suiseki.md` are done. v2 stays unchecked until `02-extending-suiseki.md` is done.
 
 ## The name
 
@@ -95,7 +95,9 @@ suiseki/                  # local dev dir; GitHub repo is <handle>/suiseki-cli
 ├── LICENSE              # Apache 2.0
 ├── NOTICE               # credits Pierre + Shiki
 ├── plans/
-│   └── 00-building-suiseki.md
+│   ├── 00-building-suiseki.md   # this file: features, README polish, architecture
+│   ├── 01-publishing-suiseki.md # v1 perf pass + release engineering
+│   └── 02-extending-suiseki.md  # v2 work (view, tree, subcommand router)
 ├── src/
 │   ├── cli.ts           # entry — v0: linear; v1: arg parsing; v2: subcommand router
 │   ├── config.ts        # TOML loading + resolution order
@@ -159,179 +161,6 @@ Remaining rendering gaps to close before v0 feels right. These should be address
 - [x] **Path vs filename display.** Directory dimmed (`#8b949e`), filename bold white (`#e1e4e8`). Renames show both paths with `→` separator.
 - [x] **Pager support.** Spawns `less -R --no-init --quit-if-one-screen` when stdout is a TTY. `--no-pager` flag or `SUISEKI_NO_PAGER=1` to disable.
 
-### 1. Scaffold
-
-```bash
-mkdir suiseki && cd suiseki
-git init
-bun init -y
-bun add @pierre/diffs shiki ansis smol-toml arktype
-bun add -d @types/bun @biomejs/biome typescript
-```
-
-Add to `package.json`:
-```json
-{
-  "name": "suiseki-cli",
-  "bin": { "suiseki": "./src/cli.ts" },
-  "scripts": {
-    "dev": "bun run src/cli.ts",
-    "test": "bun test --pass-with-no-tests",
-    "build": "mkdir -p bin && bun build src/cli.ts --compile --outfile bin/suiseki",
-    "start": "./bin/suiseki",
-    "clean": "rm -rf bin dist",
-    "format": "biome format --write .",
-    "check": "tsc --noEmit && biome check --write .",
-    "check:ci": "biome ci ."
-  }
-}
-```
-
-### 2. CLI entry (`src/cli.ts`)
-
-- If `process.stdin.isTTY === false`: read stdin to end → that's the patch
-- Otherwise: `Bun.spawn(['git', 'diff', ...process.argv.slice(2)])`, capture stdout
-- Hand patch text to `renderDiff()` from `src/render/diff.ts`
-- Write result to stdout
-
-Git integration requirement: `suiseki` should work as `core.pager`, not only as `git diff | suiseki`. When Git invokes a pager, Git sends already-generated diff text to the pager's stdin. Treat that as the primary path. Direct `suiseki HEAD~1 HEAD` usage is a convenience wrapper around `git diff`.
-
-### 3. Config loader (`src/config.ts`)
-
-Resolution order (highest → lowest):
-1. CLI flags *(skip in v0)*
-2. Env vars (`SUISEKI_SHIKI_THEME`, `SUISEKI_PIERRE_VIEW`, etc.)
-3. `$SUISEKI_CONFIG_DIR/config.toml`
-4. `$XDG_CONFIG_HOME/suiseki/config.toml` (defaulting to `~/.config/suiseki/`)
-5. `~/.suiseki/config.toml`
-6. Built-in defaults
-
-Parse with `smol-toml`. Keep config loading read-only in line with the project invariant: do not create or modify config files on first run. A future explicit `suiseki init` command may write a commented default config if the read-only CLI scope is intentionally expanded for that command.
-
-Default config:
-```toml
-[pierre]
-view = "unified"             # unified | split (split=v1)
-line-numbers = true
-change-indicator = "sign"    # sign | bar | background
-diff-background = true       # colored backgrounds on changed lines
-file-header = true           # show file header
-hunk-header = "none"         # none | full (none matches Pierre's default)
-
-[shiki]
-theme = "github-dark"        # any Shiki bundled theme
-max-line-length = 10000      # skip syntax highlighting for lines longer than this
-```
-
-Config schema rule: every config key lives under `[pierre]` or `[shiki]` — suiseki does not invent its own options but exposes Pierre and Shiki options through explicit, validated, namespaced keys. No arbitrary passthrough: unknown TOML keys are rejected, and every supported key is validated with Arktype. Keys should be overridable by a CLI flag in v1 and documented in the README config reference. Env var convention: `SUISEKI_PIERRE_<KEY>` and `SUISEKI_SHIKI_<KEY>`.
-
-Theming rule: `shiki.theme` should resolve to a Shiki bundled theme, a custom Shiki JSON theme, or a Pierre-provided Shiki theme such as a future `@pierre/theme` import. Diff backgrounds and gutters are terminal overlays layered around Shiki token colors, not a replacement theme system.
-
-### 4. Render pipeline (`src/render/diff.ts`)
-
-```ts
-import { parsePatchFiles, iterateOverDiff } from '@pierre/diffs'
-import { codeToTokensBase, getSingletonHighlighter } from 'shiki'
-import { emitLine, emitFileHeader, emitHunkHeader } from '../ansi'
-
-export async function renderDiff(patch: string, config: Config): Promise<string> {
-  const parsed = parsePatchFiles(patch)
-  const highlighter = await getSingletonHighlighter({ themes: [config.theme] })
-  const out: string[] = []
-
-  for (const file of parsed.files) {
-    out.push(emitFileHeader(file))
-    for (const hunk of file.hunks) {
-      out.push(emitHunkHeader(hunk))
-    }
-    iterateOverDiff(file, (line) => {
-      out.push(emitLine(line, highlighter, config))
-    })
-  }
-  return out.join('\n')
-}
-```
-
-> **First-session task:** confirm the exact shape of `iterateOverDiff`'s callback. The type def (`DiffLineCallbackProps`) has `additionLine` / `deletionLine` / `type` — verify the signature against `packages/diffs/src/utils/iterateOverDiff.ts` in the cloned Pierre repo before going deep.
-
-### 5. ANSI emit (`src/ansi.ts`)
-
-```ts
-import { FontStyle } from '@shikijs/vscode-textmate'
-
-function hex2rgb(hex: string): [number, number, number] {
-  const h = hex.replace('#', '')
-  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
-}
-
-const fg = (hex: string) => { const [r,g,b] = hex2rgb(hex); return `\x1b[38;2;${r};${g};${b}m` }
-const bg = (hex: string) => { const [r,g,b] = hex2rgb(hex); return `\x1b[48;2;${r};${g};${b}m` }
-const RESET = '\x1b[0m'
-
-export function emitToken(token: ThemedToken, diffBg?: string): string {
-  let out = ''
-  out += fg(token.color || '#ffffff')
-  if (diffBg) out += bg(diffBg)
-  if (token.fontStyle && (token.fontStyle & FontStyle.Bold)) out += '\x1b[1m'
-  if (token.fontStyle && (token.fontStyle & FontStyle.Italic)) out += '\x1b[3m'
-  if (token.fontStyle && (token.fontStyle & FontStyle.Underline)) out += '\x1b[4m'
-  out += token.content
-  out += RESET
-  return out
-}
-```
-
-Diff-bg palette (v0 hardcoded, configurable in v1):
-- addition: `#0e2e0e` (subtle dark green)
-- deletion: `#2e0e0e` (subtle dark red)
-- context: undefined (no bg)
-
-Pad each line to terminal width with `bg` applied so the highlight extends to edge, then `RESET`.
-
-### 6. Gutter (`src/gutter.ts`)
-
-Prepend to each rendered line:
-```
-  <line-number>  <sign>  <content>
-```
-Sign is `+` / `-` / ` `. Line number padded to width of largest line number in file. Sign-colored (green/red/dim) so it stays legible even if bg colors are disabled.
-
-### 7. Tests (`src/render/diff.test.ts`)
-
-```ts
-import { test, expect } from 'bun:test'
-import { renderDiff } from './diff'
-
-const patch = `diff --git a/src/example.ts b/src/example.ts
-...`
-
-test('renders basic unified diff', async () => {
-  const out = await renderDiff(patch, { theme: 'github-dark', view: 'unified', 'line-numbers': true, 'change-indicator': 'sign' })
-  expect(out).toContain('\x1b[48;2;14;46;14m')
-})
-```
-
-Keep small renderer fixtures inline in colocated tests. Add fixture files only when the input becomes too large to read clearly in the test body.
-
-Run: `bun test`.
-
-### 8. Try locally
-
-```bash
-cd ~/work/lyra
-bun /path/to/suiseki/src/cli.ts HEAD~1 HEAD
-# or as a pipe:
-git diff | bun /path/to/suiseki/src/cli.ts
-```
-
-### 9. Compile binary
-
-```bash
-cd /path/to/suiseki
-bun run build
-./bin/suiseki HEAD~1 HEAD
-```
-
 ### v0 sanity checks (first 10 minutes)
 
 - [x] `parsePatchFiles` from `@pierre/diffs` resolves without crashing on a `document`/`window` reference at module load.
@@ -352,28 +181,20 @@ As of `@pierre/diffs@1.1.22`, the top-level package import exposes `parsePatchFi
 
 Every config key lives under `[pierre]` or `[shiki]`. Suiseki does not claim Pierre or Shiki options as its own — it exposes them honestly under their respective namespaces.
 
-#### `[pierre]` keys (v0)
+#### `[pierre]` diff keys
 
 | Pierre option | Suiseki key | Notes |
 |---|---|---|
-| `BaseDiffOptions.diffStyle` | `pierre.view` | `"unified"` in v0; `"split"` in v1 |
+| `BaseDiffOptions.diffStyle` | `pierre.view` | `"unified"` / `"split"` |
 | `BaseDiffOptions.diffIndicators` | `pierre.change-indicator` | `classic→sign`, `bars→bar`, `none→background` |
 | `BaseCodeOptions.disableLineNumbers` | `pierre.line-numbers` | Inverted boolean |
 | `BaseDiffOptions.disableBackground` | `pierre.diff-background` | Inverted boolean, controls line bg colors |
 | `BaseCodeOptions.disableFileHeader` | `pierre.file-header` | Inverted boolean |
 | `BaseDiffOptions.hunkSeparators` | `pierre.hunk-header` | Simplified to `"full"` / `"none"` |
-
-#### `[pierre]` keys (deferred to v1)
-
-| Pierre option | Suiseki key | Notes |
-|---|---|---|
-| `collapsedContextThreshold` | `pierre.context-lines` | Context line count |
-| `expandUnchanged` | `pierre.expand-unchanged` | Show all context |
-| `lineDiffType` | `pierre.word-diff` | `"word"` / `"char"` / `"none"` |
+| `lineDiffType` | `pierre.word-diff` | `"word-alt"` / `"word"` / `"char"` / `"none"` |
 | `maxLineDiffLength` | `pierre.max-line-diff-length` | Performance guard for word diff |
-| `themeType` | `pierre.theme-type` | `"dark"` / `"light"` for dual-theme records |
 
-#### `[shiki]` keys (v0)
+#### `[shiki]` keys
 
 | Shiki option | Suiseki key | Notes |
 |---|---|---|
@@ -391,12 +212,17 @@ Every config key lives under `[pierre]` or `[shiki]`. Suiseki does not claim Pie
 | `unsafeCSS` | DOM-specific |
 | `collapsed` | Interactive UI state |
 | `disableVirtualizationBuffers` | DOM virtualization |
+| `collapsedContextThreshold` | Full-file expansion setting; `git diff` patch context belongs to Git's `-U<n>` option |
+| `expandUnchanged` | Full-file expansion setting; not meaningful for pre-rendered patch streams |
 | `expansionLineCount` | Interactive expansion |
 | `parseDiffOptions` | Internal jsdiff tuning |
+| `themeType` | CSS/system theme switching; terminal output uses one explicit Shiki theme |
+
+Tree options stay deferred to v2, when `@pierre/trees` becomes a dependency.
 
 ---
 
-# v1 — real delta alternative
+# v1 — practical terminal diff renderer
 
 **Goal:** something a stranger could actually adopt. Properly themed, fully featured for diffs, published with prebuilt binaries.
 
@@ -404,137 +230,46 @@ Every config key lives under `[pierre]` or `[shiki]`. Suiseki does not claim Pie
 
 In rough order of value:
 
-- [ ] **Split-view layout** — pair old/new lines using `iterateOverDiff`'s split metadata, columnize to terminal width. Handle line wrapping within columns.
-- [ ] **Inline word/char diff** — `diff` npm package's `diffWords` / `diffChars` on changed line pairs, overlay extra ANSI highlight (brighter bg) on changed tokens.
-- [ ] **Per-repo `.suiseki.toml`** — walk up from cwd to find. Merged on top of user config. The killer feature delta lacks: a monorepo can specify "split view + word-level for `apps/`, unified for `docs/`".
-- [ ] **CLI flags** — override any config key from the command line (`--view split`, `--theme catppuccin-mocha`, etc.). Use `cac` or `citty` for parsing (TS-native, light).
-- [ ] **Pierre terminal-surface mapping** — inventory Pierre's public diff/tree options and expose the renderer-agnostic ones through typed config keys and matching CLI flags.
-- [ ] **Pager auto-spawn** — detect non-TTY stdout, spawn `less -R --no-init` automatically. `--no-pager` to disable.
-- [ ] **Streaming for huge diffs** — switch from `parsePatchFiles` (whole-buffer) to `@pierre/diffs`'s `shiki-stream` tokenizer for diffs over N lines. Memory stays bounded.
-- [ ] **Git integration docs** in README:
-   ```bash
-   git config --global core.pager 'suiseki'
-   git config --global interactive.diffFilter 'suiseki --color-only'
-   ```
-  Also document equivalent `.gitconfig` shape:
-  ```gitconfig
-  [core]
-    pager = suiseki
-
-  [suiseki]
-    line-numbers = true
-    view = split
-    theme = github-dark
-  ```
-- [ ] **Custom theme loading** — read `~/.suiseki/themes/*.json` as Shiki themes, name resolved from filename.
-- [ ] **Pierre theme pack** — bundle `@pierre/theme`'s Shiki themes (`pierre-dark`, `pierre-light`) as built-ins.
-- [ ] **Merge conflict rendering** — use `parseMergeConflictDiffFromFile` from Pierre. 1208 lines of edge-case handling delta doesn't have. Differentiator.
-- [ ] **`--no-color` / `NO_COLOR` env support** — standard hygiene.
-- [ ] **Tests** — fixtures for split view, inline diff, merge conflicts, large patches.
-
-### Publishing
-
-- [ ] Primary distribution: prebuilt binaries via GitHub Releases (Linux x64/arm64, macOS x64/arm64, Windows x64).
-- [ ] GitHub Actions on tag runs `bun test`, builds each target, and uploads binaries to the release.
-- [ ] Install script detects platform, fetches the latest binary, and installs to `/usr/local/bin/`.
-- [ ] Homebrew tap ships a `suiseki.rb` formula.
-- [ ] npm publish decision is made post-v1. If done, name is `suiseki-cli` or scoped `@<handle>/suiseki` with `bin: { suiseki: "..." }`; otherwise squat the name with a placeholder package pointing to the binaries.
-
-### Release target policy
-
-Local development builds write only `bin/suiseki`. Release builds write named artifacts under `dist/`.
-
-Bun supports cross-compiling standalone executables with `bun build --compile --target=...`, so the first release workflow should try a cross-build matrix before adding per-platform build runners. Do not add GitHub Actions workflows until v1 release work starts.
-
-Initial release targets:
-
-- [ ] `bun-darwin-arm64` → `dist/suiseki-darwin-arm64`
-- [ ] `bun-darwin-x64` → `dist/suiseki-darwin-x64`
-- [ ] `bun-linux-x64-baseline` → `dist/suiseki-linux-x64`
-- [ ] `bun-linux-arm64` → `dist/suiseki-linux-arm64`
-- [ ] `bun-linux-x64-musl` → `dist/suiseki-linux-x64-musl`
-- [ ] `bun-linux-arm64-musl` → `dist/suiseki-linux-arm64-musl`
-- [ ] `bun-windows-x64` → `dist/suiseki-windows-x64.exe`
-- [ ] `bun-windows-arm64` → `dist/suiseki-windows-arm64.exe`
-
-Release validation:
-
-- [ ] First pass: prove each target compiles and upload artifacts with checksums.
-- [ ] Later pass: smoke-test native artifacts on matching GitHub Actions runners where practical.
-- [ ] Minimal smoke test: `suiseki --version`, `suiseki --help`, and a tiny fixture diff piped through stdin.
-- [ ] If cross-built artifacts fail native smoke tests, split release jobs by runner OS/architecture instead of forcing a single-machine cross-build.
-- [ ] Keep Linux x64 on the baseline target unless size/perf tradeoffs justify a separate modern build. Broader CPU compatibility matters more than marginal speed for a diff renderer.
+- [x] **Split-view layout** — pair old/new lines using `iterateOverDiff`'s split metadata, columnize to terminal width. Handle line wrapping within columns.
+- [x] **Inline word/char diff** — `diff` npm package's `diffWordsWithSpace` / `diffChars` on changed line pairs, overlay extra ANSI highlight (brighter bg) on changed tokens.
+- [x] **Per-repo `.suiseki.toml`** — walk up from cwd to find. Merged on top of user config. Lets a monorepo specify "split view + word-level for `apps/`, unified for `docs/`".
+- [x] **CLI flags** — override any config key from the command line (`--view split`, `--theme catppuccin-mocha`, etc.). Uses a small local parser so unknown arguments still pass through to `git diff`.
+- [x] **Default usage on empty invocation** — when `suiseki` runs with no stdin and no git diff arguments, print concise usage/setup guidance instead of silently exiting on an empty working tree.
+- [x] **Pierre terminal-surface mapping** — inventory Pierre's public diff/tree options and expose terminal-relevant, renderer-agnostic diff options through typed config keys and matching CLI flags. Tree options stay v2-only until `@pierre/trees` is added.
+- [x] **Pager auto-spawn** — when stdout is a TTY, spawn `less -R --no-init --quit-if-one-screen`. `--no-pager` flag or `SUISEKI_NO_PAGER=1` env to disable. (Landed in v0 polish.)
+- [x] **Git integration docs** in README. Shipped per-command pager settings (`pager.diff`, `pager.show`) instead of `core.pager` so that plain `git log` keeps Git's normal pager output. README also documents `interactive.diffFilter` and the equivalent `~/.gitconfig` snippet. Suiseki reads its own TOML config, not git config, so no `[suiseki]` section appears in the .gitconfig example.
+- [x] **Custom theme loading** — read `~/.suiseki/themes/*.json` (also `$SUISEKI_CONFIG_DIR/themes/` and `$XDG_CONFIG_HOME/suiseki/themes/`) as Shiki themes, name resolved from filename. Each file is parsed with `string.json.parse` then validated against `vCustomTheme` (Arktype) before being registered with the highlighter. Invalid files are skipped with a stderr warning.
+- [x] **Pierre theme pack** — bundle `@pierre/theme`'s Shiki themes as built-ins. All four variants available: `pierre-dark`, `pierre-light`, `pierre-dark-vibrant`, `pierre-light-vibrant`. Registered with the Shiki highlighter at init.
+- [x] **Merge conflict rendering** — auto-detects `<<<<<<<` markers in input and renders via Pierre's `parseMergeConflictDiffFromFile` (vendored, 1208 lines of edge-case handling). Current side renders as deletions, incoming as additions, base section (diff3) as context. Markers themselves are stripped from output. Works in unified and split views.
+- [x] **`--no-color` / `NO_COLOR` env support** — standard hygiene. `--no-color` flag plus `NO_COLOR` env var (any non-empty value) strip ANSI from rendered output.
+- **Tests** — fixtures for:
+  - [x] split view
+  - [x] inline word/char diff
+  - [x] merge conflicts
 
 ### README polish
 
 Required content for the published README, in order:
 
-- [ ] **Title + tagline** — "suiseki — a terminal renderer for diffs and code"
-- [ ] **The naming homage paragraph** from the [§ The name](#the-name) section above. Copy verbatim.
+- [x] **Title + tagline** — "suiseki — a terminal renderer for diffs and code"
+- [x] **The naming homage paragraph** from the [§ The name](#the-name) section above. Copy verbatim.
 - [ ] **Screenshot or asciinema cast** of a real diff
-- [ ] **30-second pitch** — what it does, who it's for
-- [ ] **Install** — Homebrew, install script, prebuilt binary download
-- [ ] **Quick start** — basic usage, common flags
-- [ ] **Git integration** — the `core.pager` / `interactive.diffFilter` snippet
-- [ ] **Comparison table** vs `delta` / `difftastic` / `diff-so-fancy` — be honest, note what each does better
-- [ ] **Config reference** — every key documented, with example `~/.suiseki/config.toml`
-- [ ] **Themes** — small gallery showing a few popular Shiki themes applied to the same diff
-- [ ] **Credits** — `@pierre/diffs` (Apache 2.0, with a link), Shiki (MIT), the Pierre Computer Company
+- [x] **30-second pitch** — what it does, who it's for. (Currently lives in the README Status section; expand if needed once binaries ship.)
+- [ ] **Install** — Homebrew, install script, prebuilt binary download. (Blocked on `01-publishing-suiseki.md`.)
+- [x] **Quick start** — basic usage, common flags
+- [x] **Git integration** — the per-command pager (`pager.diff`, `pager.show`) + `interactive.diffFilter` snippet
+- [ ] **Comparison table** — pick a couple of honest peers (e.g. `difftastic`, `diff-so-fancy`) and note what each does better. Skip claiming to be a replacement for any of them.
+- [x] **Config reference** — every key documented, with example `~/.suiseki/config.toml`
+- [ ] **Themes** — small gallery showing a few popular Shiki themes plus the Pierre theme variants applied to the same diff
+- [x] **Credits** — `@pierre/diffs` (Apache 2.0, with a link), Shiki (MIT), the Pierre Computer Company
 
-### Upstream-to-Pierre proposal
-
-- [ ] After v1 ships and there's something concrete to point at, file an issue on `pierrecomputer/pierre`:
-
-> **Proposal: extract `@pierre/diff-core` — renderer-agnostic parsing + iteration**
->
-> I've built a terminal diff renderer (link to suiseki-cli) using `@pierre/diffs`' parsing utilities, importing them from the main entry and tree-shaking the DOM code at bundle time. It works, but a renderer-agnostic `@pierre/diff-core` package would be cleaner — `@pierre/diffs` and `PierreDiffsSwift` (and now suiseki) all consume those utilities independent of the renderer. Happy to draft the PR.
-
-Outcome doesn't block anything. Even if they decline, v1 ships fine.
+Release engineering for v1 (binaries, GH Releases, Homebrew, install script) is tracked in [`01-publishing-suiseki.md`](./01-publishing-suiseki.md). Start that plan once these v1 features and the README polish are complete.
 
 ---
 
 # v2 — Pierre's renderer for the terminal
 
-**Goal:** the tool stops being just a diff renderer. It becomes the general "view code in the terminal" tool — diffs, files, and static trees. The name `suiseki` (the art of viewing stones) already covers this expanded identity; no rename needed.
-
-### Features
-
-- [ ] **Subcommand router in `src/cli.ts`** — replace v1's flat arg parsing with subcommand dispatch:
-   ```
-   suiseki diff [git-args]       # current v1 behavior
-   suiseki view <file>           # syntax-highlighted file (bat-alternative)
-   suiseki tree [path]           # static tree print, Pierre-styled
-   suiseki                       # smart default: if cwd is a git repo with changes,
-                                 # show `diff` of working tree; else show `tree .`
-   ```
-   Each subcommand inherits global flags (`--theme`, `--no-color`, `--no-pager`).
-
-- [ ] **`view` subcommand (`src/render/file.ts`)** — bat alternative:
-   - Read file from path
-   - Detect language from extension (use Pierre's `getFiletypeFromFileName` util)
-   - Tokenize with Shiki, emit ANSI with line numbers, no diff bg
-   - Show file header (filename, language detected, size)
-   - Same pager/color/theme rules as `diff`
-   - **Architecture**: 90% reused from v0's diff pipeline minus the diff overlay. ~150 LOC of new code.
-
-- [ ] **`tree` subcommand (`src/render/tree.ts`)** — `tree` command alternative, Pierre-styled:
-   - Use `@pierre/trees` model layer (`FileTreeController`, path helpers, `gitStatus`) — vendor or import similar to `@pierre/diffs`
-   - Walk filesystem from given path (`readdir` via Bun)
-   - Optionally annotate with git status (M/A/D/?? prefixes)
-   - Print using Pierre's icon set + tree-drawing characters (`├── `, `└── `, `│   `)
-   - Honor `.gitignore` by default; `--all` flag overrides
-   - **Architecture**: still a Unix filter. Print once, exit. No interaction.
-
-- [ ] **`suiseki view --with-tree`** — side-by-side static print: file content on the right, tree on the left, current file path highlighted in the tree. Within terminal width; falls back to file-only if width < 100 cols. ~50 extra LOC over the basic `view` command.
-
-- [ ] **Update README** to reflect the broader identity. New comparison: vs `bat`, vs `tree`, vs `eza`, in addition to vs `delta`. The naming paragraph already supports this — suiseki is the *art of viewing*, not just diff viewing.
-
-- [ ] **Tests for each subcommand**.
-
-### v2 sanity checks
-
-- [ ] Confirm `@pierre/trees` model imports cleanly without DOM globals (same check as v0 did for `@pierre/diffs`)
-- [ ] Default behavior (`suiseki` with no args) feels right in practice — try both "in a dirty repo" and "in a clean directory"
+v2 work — `view`, `tree`, and the subcommand router — lives in [`02-extending-suiseki.md`](./02-extending-suiseki.md). Start that plan once v1 has shipped.
 
 ---
 

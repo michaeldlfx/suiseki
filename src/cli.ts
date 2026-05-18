@@ -1,5 +1,12 @@
-import { loadConfig, parseEnvironmentBoolean } from "./config"
+import { stripAnsi } from "./ansi"
+import { parseCliOptions } from "./cli-options"
+import { loadConfig, readSuisekiEnv } from "./config"
 import { renderDiff } from "./render/diff"
+import {
+  containsMergeConflictMarkers,
+  renderMergeConflictFile,
+} from "./render/merge-conflict"
+import { runThemesCommand } from "./themes-command"
 
 class CliError extends Error {
   override name = "CliError"
@@ -13,38 +20,89 @@ class CliError extends Error {
 }
 
 async function main(): Promise<void> {
-  const cliArguments = process.argv.slice(2)
-  const noPager =
-    cliArguments.includes("--no-pager") ||
-    (Bun.env.SUISEKI_NO_PAGER != null &&
-      Bun.env.SUISEKI_NO_PAGER !== "" &&
-      parseEnvironmentBoolean({
-        name: "SUISEKI_NO_PAGER",
-        value: Bun.env.SUISEKI_NO_PAGER,
-      }))
-  const filteredArguments = cliArguments.filter(
-    (argument) => argument !== "--no-pager",
-  )
-  const configuration = await loadConfig()
-  const patch = await readPatchInput(filteredArguments)
+  if (process.argv[2] === "themes") {
+    await runThemesCommand()
+    return
+  }
+
+  const parsedOptions = parseCliOptions(process.argv.slice(2))
+  if (parsedOptions.help) {
+    process.stdout.write(`${getHelpText()}\n`)
+    return
+  }
+
+  const emptyDirectInvocation =
+    process.stdin.isTTY === true && parsedOptions.gitArguments.length === 0
+  if (emptyDirectInvocation) {
+    process.stdout.write(`${getHelpText()}\n`)
+    return
+  }
+
+  const suisekiEnv = readSuisekiEnv()
+  const noPager = parsedOptions.noPager || suisekiEnv.SUISEKI_NO_PAGER === true
+  const configuration = await loadConfig({
+    overrides: parsedOptions.overrides,
+    suisekiEnv,
+  })
+  const patch = await readPatchInput(parsedOptions.gitArguments)
 
   if (patch.trim() === "") {
     return
   }
 
-  const renderedDiff = await renderDiff(patch, configuration)
+  const renderedDiff = containsMergeConflictMarkers(patch)
+    ? await renderMergeConflictFile({ configuration, content: patch })
+    : await renderDiff(patch, configuration)
 
   if (renderedDiff === "") {
     return
   }
 
-  const output = `${renderedDiff}\n`
+  const noColor = parsedOptions.noColor || (Bun.env.NO_COLOR ?? "") !== ""
+  const output = `${noColor ? stripAnsi(renderedDiff) : renderedDiff}\n`
 
   if (!noPager && process.stdout.isTTY === true) {
     await writeWithPager(output)
   } else {
     process.stdout.write(output)
   }
+}
+
+function getHelpText(): string {
+  return [
+    "suiseki - terminal diff renderer",
+    "",
+    "Usage:",
+    "  git diff | suiseki",
+    "  suiseki [options] [git-diff-args...]",
+    "  suiseki themes              List available themes",
+    "",
+    "Examples:",
+    "  suiseki --staged",
+    "  suiseki --view split --theme pierre-light HEAD~1",
+    "",
+    "Git setup:",
+    "  git config --global pager.diff 'suiseki'",
+    "  git config --global pager.show 'suiseki'",
+    "",
+    "Options:",
+    "  --view <unified|split>",
+    "  --theme <name>",
+    "  --line-numbers / --no-line-numbers",
+    "  --change-indicator <sign|bar|background>",
+    "  --diff-background / --no-diff-background",
+    "  --file-header / --no-file-header",
+    "  --hunk-header <none|full>",
+    "  --word-diff <word-alt|word|char|none>",
+    "  --max-line-diff-length <number>",
+    "  --max-line-length <number>",
+    "  --no-pager",
+    "  --no-color   (also honors NO_COLOR env var)",
+    "",
+    "More:",
+    "  Config: $SUISEKI_CONFIG_DIR/config.toml, $XDG_CONFIG_HOME/suiseki/config.toml, ~/.suiseki/config.toml, or .suiseki.toml (per-repo). Env vars: SUISEKI_*.",
+    "  Docs:   https://github.com/michaeldlfx/suiseki#readme",
+  ].join("\n")
 }
 
 async function writeWithPager(output: string): Promise<void> {

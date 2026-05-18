@@ -10,7 +10,7 @@ The name is a homage. *Pierre → stone → 水石*. The tool exists to do, for 
 
 ## Status
 
-`suiseki` is in v0: a working unified-view diff renderer with Shiki syntax highlighting, theme-derived diff backgrounds, configurable file/hunk headers, line numbers, and pager support. It works both as a piped Unix filter and as a Git pager.
+`suiseki` is in v1 development: unified and split diff views work with Shiki syntax highlighting, theme-derived diff backgrounds, configurable file/hunk headers, line numbers, and pager support. It works both as a piped Unix filter and as a Git pager.
 
 The project is a friendly terminal surface for Pierre's renderer-agnostic packages and Shiki's syntax/theme ecosystem: `@pierre/diffs` first, `@pierre/trees` next, and Shiki throughout. It is a homage and companion, not a fork or replacement.
 
@@ -29,41 +29,64 @@ suiseki HEAD~3..HEAD -- src/
 
 # disable the pager
 suiseki --no-pager HEAD~1
-SUISEKI_NO_PAGER=1 git diff | suiseki
+SUISEKI_NO_PAGER=true git diff | suiseki
+
+# override config for one run
+suiseki --view split --theme pierre-light HEAD~1
 ```
 
 ### As a Git pager
 
+Use per-command pager settings so `suiseki` renders diffs without taking over
+every paged Git command, such as `git log`:
+
 ```bash
-git config --global core.pager 'suiseki'
-git config --global interactive.diffFilter 'suiseki --color-only'
+git config --global pager.diff 'suiseki'
+git config --global pager.show 'suiseki'
 ```
 
-With that configured, `git diff`, `git show`, `git log -p`, and other diff-producing Git commands render through `suiseki` automatically.
+Or open `~/.gitconfig` with your editor and set:
+
+```gitconfig
+[pager]
+	diff = suiseki
+	show = suiseki
+```
+
+With that configured, `git diff` and `git show` render through `suiseki`.
+Plain `git log` keeps Git's normal pager output.
 
 ## Configuration
 
-`suiseki` reads a TOML config file from (in order of precedence):
+`suiseki` resolves configuration from (highest precedence first):
 
-1. `$SUISEKI_CONFIG_DIR/config.toml`
-2. `$XDG_CONFIG_HOME/suiseki/config.toml` (defaults to `~/.config/suiseki/config.toml`)
-3. `~/.suiseki/config.toml`
+1. Environment variables
+2. Nearest `.suiseki.toml` found by walking up from the current directory
+3. `$SUISEKI_CONFIG_DIR/config.toml`
+4. `$XDG_CONFIG_HOME/suiseki/config.toml` (defaults to `~/.config/suiseki/config.toml`)
+5. `~/.suiseki/config.toml`
 
-All settings can also be overridden via environment variables.
+Per-repo `.suiseki.toml` files are read-only and merge on top of user config.
 
 ```toml
 [pierre]
-view = "unified"             # SUISEKI_PIERRE_VIEW
+view = "unified"             # SUISEKI_PIERRE_VIEW (unified | split)
 line-numbers = true          # SUISEKI_PIERRE_LINE_NUMBERS
 change-indicator = "sign"    # SUISEKI_PIERRE_CHANGE_INDICATOR (sign | bar | background)
 diff-background = true       # SUISEKI_PIERRE_DIFF_BACKGROUND
 file-header = true           # SUISEKI_PIERRE_FILE_HEADER
 hunk-header = "none"         # SUISEKI_PIERRE_HUNK_HEADER (full | none)
+word-diff = "word-alt"       # SUISEKI_PIERRE_WORD_DIFF (word-alt | word | char | none)
+max-line-diff-length = 1000  # SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH
 
 [shiki]
-theme = "github-dark"        # SUISEKI_SHIKI_THEME (any bundled Shiki theme)
+theme = "pierre-dark"        # SUISEKI_SHIKI_THEME (any bundled Shiki theme or Pierre theme)
 max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
 ```
+
+Every config key can be overridden with a matching CLI flag, such as
+`--view split`, `--word-diff none`, `--no-line-numbers`, or
+`--max-line-length 5000`.
 
 ## Development
 
@@ -101,8 +124,8 @@ Run `make` or `make help` to see all available targets:
 
 ## Roadmap
 
-- **v0:** local unified-view diff renderer with Shiki highlighting, diff backgrounds, and pager support. *(current)*
-- **v1:** practical `delta` alternative with split view, inline word diff, theming, pager integration, config, and prebuilt binaries.
+- **v0:** local unified-view diff renderer with Shiki highlighting, diff backgrounds, and pager support.
+- **v1:** practical terminal diff renderer with split view, inline word diff, theming, pager integration, config, and prebuilt binaries. *(current)*
 - **v2:** broader terminal code viewer with `view` and `tree` subcommands.
 
 ## Credits

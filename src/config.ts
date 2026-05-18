@@ -1,51 +1,108 @@
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { type } from "arktype"
 import { type BundledTheme, bundledThemes } from "shiki"
 import { parse } from "smol-toml"
+import { vStringBoolean } from "./common/validators"
+import { type CustomThemes, loadCustomThemes } from "./custom-themes"
+import { isPierreThemeName } from "./pierre-themes"
 
-export const vPierreConfig = type({
-  view: '"unified"',
+const vPositiveInteger = type("number.integer > 0")
+const vPositiveIntegerString = type("string.numeric.parse").to(vPositiveInteger)
+
+const vSuisekiEnv = type({
+  "SUISEKI_PIERRE_VIEW?": '"unified" | "split"',
+  "SUISEKI_PIERRE_LINE_NUMBERS?": vStringBoolean,
+  "SUISEKI_PIERRE_CHANGE_INDICATOR?": '"sign" | "bar" | "background"',
+  "SUISEKI_PIERRE_DIFF_BACKGROUND?": vStringBoolean,
+  "SUISEKI_PIERRE_FILE_HEADER?": vStringBoolean,
+  "SUISEKI_PIERRE_HUNK_HEADER?": '"full" | "none"',
+  "SUISEKI_PIERRE_WORD_DIFF?": '"word-alt" | "word" | "char" | "none"',
+  "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH?": vPositiveIntegerString,
+  "SUISEKI_SHIKI_THEME?": "string",
+  "SUISEKI_SHIKI_MAX_LINE_LENGTH?": vPositiveIntegerString,
+  "SUISEKI_NO_PAGER?": vStringBoolean,
+})
+
+export type SuisekiEnv = typeof vSuisekiEnv.infer
+
+export function readSuisekiEnv(): SuisekiEnv {
+  // Drop undefined/empty values so optional schema keys treat them as absent
+  // rather than as present-but-wrong-type. Bun.env preserves keys set to
+  // undefined, and arktype's `?` is strict about that distinction.
+  const definedEnv: Record<string, string> = {}
+  for (const [key, value] of Object.entries(Bun.env)) {
+    if (value == null || value === "") continue
+    definedEnv[key] = value
+  }
+
+  const parsedEnv = vSuisekiEnv(definedEnv)
+  if (parsedEnv instanceof type.errors) {
+    throw new ConfigError(parsedEnv.summary)
+  }
+  return parsedEnv
+}
+
+const PIERRE_CONFIG_FIELDS = {
+  view: '"unified" | "split"',
   "line-numbers": "boolean",
   "change-indicator": '"sign" | "bar" | "background"',
   "diff-background": "boolean",
   "file-header": "boolean",
   "hunk-header": '"full" | "none"',
-})
+  "word-diff": '"word-alt" | "word" | "char" | "none"',
+  "max-line-diff-length": vPositiveInteger,
+} as const
 
-export const vShikiConfig = type({
+const SHIKI_CONFIG_FIELDS = {
   theme: "string",
-  "max-line-length": "number",
-})
+  "max-line-length": vPositiveInteger,
+} as const
+
+const CLI_PIERRE_CONFIG_FIELDS = {
+  ...PIERRE_CONFIG_FIELDS,
+  "max-line-diff-length": vPositiveIntegerString,
+} as const
+
+const CLI_SHIKI_CONFIG_FIELDS = {
+  ...SHIKI_CONFIG_FIELDS,
+  "max-line-length": vPositiveIntegerString,
+} as const
+
+export const vPierreConfig = type(PIERRE_CONFIG_FIELDS)
+export const vShikiConfig = type(SHIKI_CONFIG_FIELDS)
+export const vCliPierreConfig = type(CLI_PIERRE_CONFIG_FIELDS)
+export const vCliShikiConfig = type(CLI_SHIKI_CONFIG_FIELDS)
 
 export const vSuisekiConfig = type({
   pierre: vPierreConfig,
   shiki: vShikiConfig,
 })
 
-type PierreKey =
-  | "view"
-  | "line-numbers"
-  | "change-indicator"
-  | "diff-background"
-  | "file-header"
-  | "hunk-header"
-type ShikiKey = "theme" | "max-line-length"
+export const vPierreConfigOverrides = vPierreConfig.partial()
+export const vShikiConfigOverrides = vShikiConfig.partial()
+export const vSuisekiConfigOverrides = type({
+  "pierre?": vPierreConfigOverrides,
+  "shiki?": vShikiConfigOverrides,
+})
+export const vCliConfigOverrides = type({
+  "pierre?": vCliPierreConfig.partial(),
+  "shiki?": vCliShikiConfig.partial(),
+})
+
+type PierreKey = keyof typeof PIERRE_CONFIG_FIELDS
+type ShikiKey = keyof typeof SHIKI_CONFIG_FIELDS
 
 const TOP_LEVEL_KEYS = ["pierre", "shiki"] as const
-const PIERRE_KEYS: PierreKey[] = [
-  "view",
-  "line-numbers",
-  "change-indicator",
-  "diff-background",
-  "file-header",
-  "hunk-header",
-]
-const SHIKI_KEYS: ShikiKey[] = ["theme", "max-line-length"]
+const PIERRE_KEYS = Object.keys(PIERRE_CONFIG_FIELDS)
+const SHIKI_KEYS = Object.keys(SHIKI_CONFIG_FIELDS)
 
-export type SuisekiConfig = typeof vSuisekiConfig.infer
+export type SuisekiConfig = typeof vSuisekiConfig.infer & {
+  customThemes: CustomThemes
+}
+export type SuisekiConfigOverrides = typeof vSuisekiConfigOverrides.infer
 
-type ConfigFileData = {
+type DraftSuisekiConfigOverrides = {
   pierre?: Partial<Record<PierreKey, unknown>>
   shiki?: Partial<Record<ShikiKey, unknown>>
 }
@@ -58,11 +115,14 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
     "diff-background": true,
     "file-header": true,
     "hunk-header": "none",
+    "word-diff": "word-alt",
+    "max-line-diff-length": 1000,
   },
   shiki: {
-    theme: "github-dark",
+    theme: "pierre-dark",
     "max-line-length": 10000,
   },
+  customThemes: {},
 }
 
 export class ConfigError extends Error {
@@ -70,36 +130,67 @@ export class ConfigError extends Error {
 }
 
 type LoadedConfigFile = {
-  configuration: ConfigFileData
+  configuration: SuisekiConfigOverrides
   path: string
 }
 
-export async function loadConfig(): Promise<SuisekiConfig> {
-  const loadedConfigFile = await loadFirstConfigFile()
-  const fileConfiguration = loadedConfigFile?.configuration ?? {}
-  const environmentOverrides = readEnvironmentOverrides()
+type LoadConfigParams = {
+  currentWorkingDirectory?: string
+  overrides?: SuisekiConfigOverrides
+  suisekiEnv?: SuisekiEnv
+}
+
+export async function loadConfig({
+  currentWorkingDirectory = process.cwd(),
+  overrides = {},
+  suisekiEnv = readSuisekiEnv(),
+}: LoadConfigParams = {}): Promise<SuisekiConfig> {
+  const loadedUserConfigFile = await loadFirstUserConfigFile()
+  const loadedRepositoryConfigFile = await loadRepositoryConfigFile({
+    currentWorkingDirectory,
+  })
+  const userConfiguration = loadedUserConfigFile?.configuration ?? {}
+  const repositoryConfiguration =
+    loadedRepositoryConfigFile?.configuration ?? {}
+  const environmentOverrides = environmentOverridesFrom(suisekiEnv)
 
   const mergedConfiguration = {
     pierre: {
       ...DEFAULT_CONFIG.pierre,
-      ...(fileConfiguration.pierre ?? {}),
+      ...(userConfiguration.pierre ?? {}),
+      ...(repositoryConfiguration.pierre ?? {}),
       ...(environmentOverrides.pierre ?? {}),
+      ...(overrides.pierre ?? {}),
     },
     shiki: {
       ...DEFAULT_CONFIG.shiki,
-      ...(fileConfiguration.shiki ?? {}),
+      ...(userConfiguration.shiki ?? {}),
+      ...(repositoryConfiguration.shiki ?? {}),
       ...(environmentOverrides.shiki ?? {}),
+      ...(overrides.shiki ?? {}),
     },
   }
+  const configurationSources = [
+    loadedUserConfigFile?.path,
+    loadedRepositoryConfigFile?.path,
+    hasConfigOverrides(overrides) ? "CLI overrides" : undefined,
+  ].filter((source) => source != null)
 
-  return validateConfig(
-    mergedConfiguration,
-    loadedConfigFile?.path ?? "defaults",
-  )
+  const customThemes = await loadCustomThemes()
+
+  return validateConfig({
+    configuration: mergedConfiguration,
+    customThemes,
+    source:
+      configurationSources.length > 0
+        ? configurationSources.join(", ")
+        : "defaults",
+  })
 }
 
 function getConfigFileCandidates(): string[] {
-  const homeDirectory = homedir()
+  const homeDirectory =
+    Bun.env.HOME != null && Bun.env.HOME !== "" ? Bun.env.HOME : homedir()
   const configFileCandidates: string[] = []
   const explicitConfigDirectory = Bun.env.SUISEKI_CONFIG_DIR
 
@@ -118,7 +209,9 @@ function getConfigFileCandidates(): string[] {
   return configFileCandidates
 }
 
-async function loadFirstConfigFile(): Promise<LoadedConfigFile | undefined> {
+async function loadFirstUserConfigFile(): Promise<
+  LoadedConfigFile | undefined
+> {
   for (const configFilePath of getConfigFileCandidates()) {
     const configFile = Bun.file(configFilePath)
     if (await configFile.exists()) {
@@ -133,10 +226,51 @@ async function loadFirstConfigFile(): Promise<LoadedConfigFile | undefined> {
   return undefined
 }
 
+type LoadRepositoryConfigFileParams = {
+  currentWorkingDirectory: string
+}
+
+async function loadRepositoryConfigFile({
+  currentWorkingDirectory,
+}: LoadRepositoryConfigFileParams): Promise<LoadedConfigFile | undefined> {
+  for (const configFilePath of getRepositoryConfigFileCandidates(
+    currentWorkingDirectory,
+  )) {
+    const configFile = Bun.file(configFilePath)
+    if (await configFile.exists()) {
+      const fileText = await configFile.text()
+      return {
+        configuration: parseConfigFile(fileText, configFilePath),
+        path: configFilePath,
+      }
+    }
+  }
+
+  return undefined
+}
+
+function getRepositoryConfigFileCandidates(
+  currentWorkingDirectory: string,
+): string[] {
+  const configFileCandidates: string[] = []
+  let directory = resolve(currentWorkingDirectory)
+
+  while (true) {
+    configFileCandidates.push(join(directory, ".suiseki.toml"))
+
+    const parentDirectory = dirname(directory)
+    if (parentDirectory === directory) {
+      return configFileCandidates
+    }
+
+    directory = parentDirectory
+  }
+}
+
 function parseConfigFile(
   fileText: string,
   configFilePath: string,
-): ConfigFileData {
+): SuisekiConfigOverrides {
   let parsedConfig: unknown
 
   try {
@@ -150,135 +284,62 @@ function parseConfigFile(
   assertPlainObject(parsedConfig, configFilePath)
   assertKnownConfigKeys(parsedConfig, configFilePath)
 
-  return parsedConfig
+  return validateConfigOverrides(parsedConfig, configFilePath)
 }
 
-function readEnvironmentOverrides(): ConfigFileData {
-  const environmentOverrides: ConfigFileData = {}
-
-  const pierreOverrides = readPierreEnvironmentOverrides()
-  if (Object.keys(pierreOverrides).length > 0) {
-    environmentOverrides.pierre = pierreOverrides
+function environmentOverridesFrom(env: SuisekiEnv): SuisekiConfigOverrides {
+  const pierre: Partial<Record<PierreKey, unknown>> = {}
+  if (env.SUISEKI_PIERRE_VIEW !== undefined) {
+    pierre.view = env.SUISEKI_PIERRE_VIEW
+  }
+  if (env.SUISEKI_PIERRE_LINE_NUMBERS !== undefined) {
+    pierre["line-numbers"] = env.SUISEKI_PIERRE_LINE_NUMBERS
+  }
+  if (env.SUISEKI_PIERRE_CHANGE_INDICATOR !== undefined) {
+    pierre["change-indicator"] = env.SUISEKI_PIERRE_CHANGE_INDICATOR
+  }
+  if (env.SUISEKI_PIERRE_DIFF_BACKGROUND !== undefined) {
+    pierre["diff-background"] = env.SUISEKI_PIERRE_DIFF_BACKGROUND
+  }
+  if (env.SUISEKI_PIERRE_FILE_HEADER !== undefined) {
+    pierre["file-header"] = env.SUISEKI_PIERRE_FILE_HEADER
+  }
+  if (env.SUISEKI_PIERRE_HUNK_HEADER !== undefined) {
+    pierre["hunk-header"] = env.SUISEKI_PIERRE_HUNK_HEADER
+  }
+  if (env.SUISEKI_PIERRE_WORD_DIFF !== undefined) {
+    pierre["word-diff"] = env.SUISEKI_PIERRE_WORD_DIFF
+  }
+  if (env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH !== undefined) {
+    pierre["max-line-diff-length"] = env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH
   }
 
-  const shikiOverrides = readShikiEnvironmentOverrides()
-  if (Object.keys(shikiOverrides).length > 0) {
-    environmentOverrides.shiki = shikiOverrides
+  const shiki: Partial<Record<ShikiKey, unknown>> = {}
+  if (env.SUISEKI_SHIKI_THEME !== undefined) {
+    shiki.theme = env.SUISEKI_SHIKI_THEME
+  }
+  if (env.SUISEKI_SHIKI_MAX_LINE_LENGTH !== undefined) {
+    shiki["max-line-length"] = env.SUISEKI_SHIKI_MAX_LINE_LENGTH
   }
 
-  return environmentOverrides
+  const overrides: DraftSuisekiConfigOverrides = {}
+  if (Object.keys(pierre).length > 0) overrides.pierre = pierre
+  if (Object.keys(shiki).length > 0) overrides.shiki = shiki
+
+  return validateConfigOverrides(overrides, "environment")
 }
 
-function readPierreEnvironmentOverrides(): Partial<Record<PierreKey, unknown>> {
-  const overrides: Partial<Record<PierreKey, unknown>> = {}
-
-  if (
-    Bun.env.SUISEKI_PIERRE_VIEW != null &&
-    Bun.env.SUISEKI_PIERRE_VIEW !== ""
-  ) {
-    overrides.view = Bun.env.SUISEKI_PIERRE_VIEW
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_LINE_NUMBERS != null &&
-    Bun.env.SUISEKI_PIERRE_LINE_NUMBERS !== ""
-  ) {
-    overrides["line-numbers"] = parseEnvironmentBoolean({
-      name: "SUISEKI_PIERRE_LINE_NUMBERS",
-      value: Bun.env.SUISEKI_PIERRE_LINE_NUMBERS,
-    })
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR != null &&
-    Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR !== ""
-  ) {
-    overrides["change-indicator"] = Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_DIFF_BACKGROUND != null &&
-    Bun.env.SUISEKI_PIERRE_DIFF_BACKGROUND !== ""
-  ) {
-    overrides["diff-background"] = parseEnvironmentBoolean({
-      name: "SUISEKI_PIERRE_DIFF_BACKGROUND",
-      value: Bun.env.SUISEKI_PIERRE_DIFF_BACKGROUND,
-    })
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_FILE_HEADER != null &&
-    Bun.env.SUISEKI_PIERRE_FILE_HEADER !== ""
-  ) {
-    overrides["file-header"] = parseEnvironmentBoolean({
-      name: "SUISEKI_PIERRE_FILE_HEADER",
-      value: Bun.env.SUISEKI_PIERRE_FILE_HEADER,
-    })
-  }
-
-  if (
-    Bun.env.SUISEKI_PIERRE_HUNK_HEADER != null &&
-    Bun.env.SUISEKI_PIERRE_HUNK_HEADER !== ""
-  ) {
-    overrides["hunk-header"] = Bun.env.SUISEKI_PIERRE_HUNK_HEADER
-  }
-
-  return overrides
+type ValidateConfigParams = {
+  configuration: unknown
+  customThemes: CustomThemes
+  source: string
 }
 
-function readShikiEnvironmentOverrides(): Partial<Record<ShikiKey, unknown>> {
-  const overrides: Partial<Record<ShikiKey, unknown>> = {}
-
-  if (
-    Bun.env.SUISEKI_SHIKI_THEME != null &&
-    Bun.env.SUISEKI_SHIKI_THEME !== ""
-  ) {
-    overrides.theme = Bun.env.SUISEKI_SHIKI_THEME
-  }
-
-  if (
-    Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH != null &&
-    Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH !== ""
-  ) {
-    const parsedValue = Number(Bun.env.SUISEKI_SHIKI_MAX_LINE_LENGTH)
-
-    if (Number.isNaN(parsedValue) || parsedValue <= 0) {
-      throw new ConfigError(
-        "SUISEKI_SHIKI_MAX_LINE_LENGTH must be a positive number",
-      )
-    }
-
-    overrides["max-line-length"] = parsedValue
-  }
-
-  return overrides
-}
-
-type ParseEnvironmentBooleanParams = {
-  name: string
-  value: string
-}
-
-export function parseEnvironmentBoolean({
-  name,
-  value,
-}: ParseEnvironmentBooleanParams): boolean {
-  const normalizedValue = value.toLowerCase()
-
-  if (["1", "true", "yes", "on"].includes(normalizedValue)) {
-    return true
-  }
-
-  if (["0", "false", "no", "off"].includes(normalizedValue)) {
-    return false
-  }
-
-  throw new ConfigError(
-    `${name} must be one of true, false, 1, 0, yes, no, on, or off`,
-  )
-}
-
-function validateConfig(configuration: unknown, source: string): SuisekiConfig {
+function validateConfig({
+  configuration,
+  customThemes,
+  source,
+}: ValidateConfigParams): SuisekiConfig {
   const validatedConfiguration = vSuisekiConfig(configuration)
 
   if (validatedConfiguration instanceof type.errors) {
@@ -287,11 +348,32 @@ function validateConfig(configuration: unknown, source: string): SuisekiConfig {
     )
   }
 
-  if (!isBundledThemeName(validatedConfiguration.shiki.theme)) {
+  if (
+    !isSupportedThemeName({
+      themeName: validatedConfiguration.shiki.theme,
+      customThemes,
+    })
+  ) {
     throw new ConfigError(
-      `Invalid suiseki configuration from ${source}: shiki.theme must be a bundled Shiki theme name`,
+      `Invalid suiseki configuration from ${source}: shiki.theme must be a bundled Shiki theme, a Pierre theme, or a custom theme loaded from ~/.suiseki/themes/`,
     )
   }
+
+  return { ...validatedConfiguration, customThemes }
+}
+
+function validateConfigOverrides(
+  configuration: unknown,
+  source: string,
+): SuisekiConfigOverrides {
+  const validatedConfiguration = vSuisekiConfigOverrides(configuration)
+
+  if (validatedConfiguration instanceof type.errors) {
+    throw new ConfigError(
+      `Invalid suiseki configuration from ${source}: ${validatedConfiguration.summary}`,
+    )
+  }
+
   return validatedConfiguration
 }
 
@@ -299,6 +381,22 @@ export function isBundledThemeName(
   themeName: string,
 ): themeName is BundledTheme {
   return Object.hasOwn(bundledThemes, themeName)
+}
+
+type IsSupportedThemeNameParams = {
+  customThemes: CustomThemes
+  themeName: string
+}
+
+export function isSupportedThemeName({
+  customThemes,
+  themeName,
+}: IsSupportedThemeNameParams): boolean {
+  return (
+    isBundledThemeName(themeName) ||
+    isPierreThemeName(themeName) ||
+    Object.hasOwn(customThemes, themeName)
+  )
 }
 
 function assertPlainObject(
@@ -313,7 +411,7 @@ function assertPlainObject(
 function assertKnownConfigKeys(
   value: Record<string, unknown>,
   configFilePath: string,
-): asserts value is ConfigFileData {
+): asserts value is SuisekiConfigOverrides {
   assertKnownKeysInSet(Object.keys(value), TOP_LEVEL_KEYS, configFilePath)
 
   if (value.pierre != null) {
@@ -353,4 +451,11 @@ function assertKnownKeysInSet(
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function hasConfigOverrides(overrides: SuisekiConfigOverrides): boolean {
+  return (
+    Object.keys(overrides.pierre ?? {}).length > 0 ||
+    Object.keys(overrides.shiki ?? {}).length > 0
+  )
 }

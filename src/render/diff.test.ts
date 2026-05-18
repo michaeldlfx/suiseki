@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import assert from "node:assert"
 import { RESET, stripAnsi } from "../ansi"
 import { DEFAULT_CONFIG, type SuisekiConfig } from "../config"
 import { renderDiff } from "./diff"
@@ -13,18 +14,39 @@ index 1111111..2222222 100644
 +  const message = \`Hello \${name}\`
 +  console.info(message)
  }
-
+${" "}
  greet("Ada")
 `
 
+const INLINE_DIFF = `diff --git a/src/message.ts b/src/message.ts
+index 1111111..2222222 100644
+--- a/src/message.ts
++++ b/src/message.ts
+@@ -1 +1 @@
+-const message = "hello old world"
++const message = "hello new world"
+`
+
+const ANSI_ESCAPE = String.fromCharCode(27)
+const BACKGROUND_ESCAPE_PATTERN = new RegExp(
+  `${ANSI_ESCAPE}\\[[0-9;]*48;2;[0-9;]+m`,
+  "g",
+)
+
 function configWith(overrides: {
+  customThemes?: SuisekiConfig["customThemes"]
   pierre?: Partial<SuisekiConfig["pierre"]>
   shiki?: Partial<SuisekiConfig["shiki"]>
 }): SuisekiConfig {
   return {
     pierre: { ...DEFAULT_CONFIG.pierre, ...(overrides.pierre ?? {}) },
     shiki: { ...DEFAULT_CONFIG.shiki, ...(overrides.shiki ?? {}) },
+    customThemes: overrides.customThemes ?? {},
   }
+}
+
+function countBackgroundEscapes(value: string): number {
+  return value.match(BACKGROUND_ESCAPE_PATTERN)?.length ?? 0
 }
 
 describe("renderDiff", () => {
@@ -48,6 +70,17 @@ describe("renderDiff", () => {
 
     expect(plainRenderedDiff).toContain("src/example.ts")
     expect(plainRenderedDiff).toContain("-1 +2")
+  })
+
+  test("adds blank line after file header before diff rows", async () => {
+    const renderedDiff = await renderDiff(BASIC_DIFF, DEFAULT_CONFIG)
+    const renderedLines = renderedDiff.split("\n")
+    const fileHeaderIndex = renderedLines.findIndex((line) =>
+      stripAnsi(line).includes("src/example.ts"),
+    )
+
+    assert(fileHeaderIndex !== -1, "file header should be rendered")
+    expect(renderedLines[fileHeaderIndex + 1]).toEqual("")
   })
 
   test("does not show hunk header by default", async () => {
@@ -89,6 +122,39 @@ describe("renderDiff", () => {
     const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
 
     expect(renderedDiff).not.toContain(";48;2;")
+  })
+
+  test("renders bar change indicators", async () => {
+    const configuration = configWith({
+      pierre: {
+        "change-indicator": "bar",
+        "line-numbers": false,
+      },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain('│    console.log("Hello " + name)')
+    expect(plainRenderedDiff).toContain("│    const message =")
+  })
+
+  test("omits signs when change indicator is background", async () => {
+    const configuration = configWith({
+      pierre: {
+        "change-indicator": "background",
+        "line-numbers": false,
+      },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const additionLine = stripAnsi(renderedDiff)
+      .split("\n")
+      .find((line) => line.includes("const message ="))
+
+    assert(additionLine != null, "addition line should be rendered")
+    expect(additionLine.startsWith("   ")).toEqual(true)
+    expect(additionLine.startsWith("+")).toEqual(false)
   })
 
   test("omits file header when pierre.file-header is false", async () => {
@@ -191,10 +257,12 @@ rename to new-name.ts
 `
     const renderedDiff = await renderDiff(renamedFileDiff, DEFAULT_CONFIG)
     const plainRenderedDiff = stripAnsi(renderedDiff)
+    const renderedLines = renderedDiff.split("\n")
 
     expect(plainRenderedDiff).toContain("→ old-name.ts")
     expect(plainRenderedDiff).toContain("old-name.ts")
     expect(plainRenderedDiff).toContain("new-name.ts")
+    expect(renderedLines).toHaveLength(1)
   })
 
   test("file header shows → icon for renamed file with content changes", async () => {
@@ -230,6 +298,19 @@ index 1111111..2222222 100644
     expect(renderedDiff).toContain(";48;2;")
   })
 
+  test("renders with a Pierre theme registered alongside Shiki bundled themes", async () => {
+    const configuration = configWith({
+      shiki: { theme: "pierre-dark" },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    expect(plainRenderedDiff).toContain("src/example.ts")
+    expect(plainRenderedDiff).toContain("-1 +2")
+    expect(renderedDiff).toContain(";48;2;")
+  })
+
   test("falls back to plaintext tokenization for lines exceeding shiki.max-line-length", async () => {
     const longLine = "a".repeat(200)
     const longLineDiff = `diff --git a/long.txt b/long.txt
@@ -248,5 +329,142 @@ index 1111111..2222222 100644
     const plainRenderedDiff = stripAnsi(renderedDiff)
 
     expect(plainRenderedDiff).toContain(longLine)
+  })
+
+  test("renders split view with paired deletion and addition columns", async () => {
+    const configuration = configWith({
+      pierre: { view: "split" },
+    })
+
+    const renderedDiff = await renderDiff(BASIC_DIFF, configuration)
+    const plainRenderedLines = stripAnsi(renderedDiff).split("\n")
+    const templateInterpolation = "$" + "{name}"
+    const pairedChangeLine = plainRenderedLines.find((line) =>
+      line.includes('console.log("Hello " + name)'),
+    )
+
+    assert(pairedChangeLine != null, "split view should render deleted line")
+    expect(pairedChangeLine).toContain(
+      `const message = \`Hello ${templateInterpolation}\``,
+    )
+    expect(pairedChangeLine).toContain("│")
+    expect(renderedDiff).toContain(";48;2;")
+  })
+
+  test("wraps long split-view content inside each column", async () => {
+    const longLine = "x".repeat(180)
+    const longLineDiff = `diff --git a/long.ts b/long.ts
+index 1111111..2222222 100644
+--- a/long.ts
++++ b/long.ts
+@@ -1 +1 @@
+-${longLine}
++${longLine}
+`
+    const configuration = configWith({
+      pierre: { view: "split" },
+    })
+
+    const renderedDiff = await renderDiff(longLineDiff, configuration)
+    const wrappedContentLines = stripAnsi(renderedDiff)
+      .split("\n")
+      .filter((line) => line.includes("xxxxxxxxxx"))
+
+    expect(wrappedContentLines.length > 1).toEqual(true)
+  })
+
+  test("renders inline word diff highlights for changed line pairs", async () => {
+    const renderedDiff = await renderDiff(INLINE_DIFF, DEFAULT_CONFIG)
+    const renderedDiffWithoutInlineHighlights = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { "word-diff": "none" } }),
+    )
+
+    expect(stripAnsi(renderedDiff)).toEqual(
+      stripAnsi(renderedDiffWithoutInlineHighlights),
+    )
+    expect(countBackgroundEscapes(renderedDiff)).toBeGreaterThan(
+      countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
+    )
+  })
+
+  test("renders inline word diff highlights in split view", async () => {
+    const renderedDiff = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { view: "split" } }),
+    )
+    const renderedDiffWithoutInlineHighlights = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { view: "split", "word-diff": "none" } }),
+    )
+
+    expect(stripAnsi(renderedDiff)).toEqual(
+      stripAnsi(renderedDiffWithoutInlineHighlights),
+    )
+    expect(countBackgroundEscapes(renderedDiff)).toBeGreaterThan(
+      countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
+    )
+  })
+
+  test("renders char diff highlights differently from word diff highlights", async () => {
+    const compactDiff = `diff --git a/compact.txt b/compact.txt
+index 1111111..2222222 100644
+--- a/compact.txt
++++ b/compact.txt
+@@ -1 +1 @@
+-abc
++axc
+`
+    const renderedWordDiff = await renderDiff(
+      compactDiff,
+      configWith({ pierre: { "word-diff": "word" } }),
+    )
+    const renderedCharDiff = await renderDiff(
+      compactDiff,
+      configWith({ pierre: { "word-diff": "char" } }),
+    )
+
+    expect(stripAnsi(renderedCharDiff)).toEqual(stripAnsi(renderedWordDiff))
+    expect(renderedCharDiff).not.toEqual(renderedWordDiff)
+  })
+
+  test("renders word-alt inline highlights differently from word highlights", async () => {
+    const punctuationDiff = `diff --git a/punctuation.txt b/punctuation.txt
+index 1111111..2222222 100644
+--- a/punctuation.txt
++++ b/punctuation.txt
+@@ -1 +1 @@
+-a-b-c
++a+b+c
+`
+    const renderedWordAltDiff = await renderDiff(
+      punctuationDiff,
+      DEFAULT_CONFIG,
+    )
+    const renderedWordDiff = await renderDiff(
+      punctuationDiff,
+      configWith({ pierre: { "word-diff": "word" } }),
+    )
+
+    expect(stripAnsi(renderedWordAltDiff)).toEqual(stripAnsi(renderedWordDiff))
+    expect(renderedWordAltDiff).not.toEqual(renderedWordDiff)
+  })
+
+  test("skips inline diff highlights for lines above pierre.max-line-diff-length", async () => {
+    const renderedDiff = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { "max-line-diff-length": 10 } }),
+    )
+    const renderedDiffWithoutInlineHighlights = await renderDiff(
+      INLINE_DIFF,
+      configWith({ pierre: { "word-diff": "none" } }),
+    )
+
+    expect(stripAnsi(renderedDiff)).toEqual(
+      stripAnsi(renderedDiffWithoutInlineHighlights),
+    )
+    expect(countBackgroundEscapes(renderedDiff)).toEqual(
+      countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
+    )
   })
 })

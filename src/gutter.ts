@@ -1,16 +1,15 @@
 import { emitStyledText } from "./ansi"
 
-export type ChangeSign = "+" | "-" | " "
+export type ChangeMarker = "+" | "-" | "│" | " "
 
 type RenderGutterParams = {
-  additionSignColor: string
   backgroundColor?: string
-  deletionSignColor: string
   gutterForegroundColor: string
   lineNumber?: number
   lineNumberWidth: number
   lineNumbers: boolean
-  sign: ChangeSign
+  marker: ChangeMarker
+  markerForegroundColor: string
 }
 
 type RenderedGutter = {
@@ -19,33 +18,25 @@ type RenderedGutter = {
 }
 
 export function renderGutter({
-  additionSignColor,
   backgroundColor,
-  deletionSignColor,
   gutterForegroundColor,
   lineNumber,
   lineNumberWidth,
   lineNumbers,
-  sign,
+  marker,
+  markerForegroundColor,
 }: RenderGutterParams): RenderedGutter {
   const lineNumberText =
     lineNumber == null
       ? " ".repeat(lineNumberWidth)
       : String(lineNumber).padStart(lineNumberWidth, " ")
 
-  const signColor = getSignColor({
-    additionSignColor,
-    deletionSignColor,
-    gutterForegroundColor,
-    sign,
-  })
-
   if (!lineNumbers) {
     return {
       text:
         emitStyledText({
-          text: sign,
-          foregroundColor: signColor,
+          text: marker,
+          foregroundColor: markerForegroundColor,
           backgroundColor,
         }) +
         emitStyledText({
@@ -65,8 +56,8 @@ export function renderGutter({
         backgroundColor,
       }) +
       emitStyledText({
-        text: sign,
-        foregroundColor: signColor,
+        text: marker,
+        foregroundColor: markerForegroundColor,
         backgroundColor,
       }) +
       emitStyledText({
@@ -76,28 +67,4 @@ export function renderGutter({
       }),
     visibleLength: lineNumberWidth + 5,
   }
-}
-
-type GetSignColorParams = {
-  additionSignColor: string
-  deletionSignColor: string
-  gutterForegroundColor: string
-  sign: ChangeSign
-}
-
-function getSignColor({
-  additionSignColor,
-  deletionSignColor,
-  gutterForegroundColor,
-  sign,
-}: GetSignColorParams): string {
-  if (sign === "+") {
-    return additionSignColor
-  }
-
-  if (sign === "-") {
-    return deletionSignColor
-  }
-
-  return gutterForegroundColor
 }

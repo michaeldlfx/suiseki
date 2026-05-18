@@ -14,8 +14,10 @@
   },
   "dependencies": {
     "@pierre/diffs": "1.1.22",
+    "@pierre/theme": "0.0.29",
     "ansis": "4.3.0",
     "arktype": "2.2.0",
+    "diff": "8.0.3",
     "shiki": "4.0.2",
     "smol-toml": "1.6.1"
   },
