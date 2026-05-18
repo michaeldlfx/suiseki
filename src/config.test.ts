@@ -192,7 +192,7 @@ describe("config.ts", () => {
           "\n",
         ),
       )
-      Bun.env.SUISEKI_PIERRE_LINE_NUMBERS = "on"
+      Bun.env.SUISEKI_PIERRE_LINE_NUMBERS = "true"
       Bun.env.SUISEKI_PIERRE_CHANGE_INDICATOR = "sign"
       Bun.env.SUISEKI_PIERRE_WORD_DIFF = "none"
       Bun.env.SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH = "400"
