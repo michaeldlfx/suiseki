@@ -32,7 +32,7 @@ suiseki --no-pager HEAD~1
 SUISEKI_NO_PAGER=1 git diff | suiseki
 
 # override config for one run
-suiseki --view split --theme github-light HEAD~1
+suiseki --view split --theme pierre-light HEAD~1
 ```
 
 ### As a Git pager
@@ -43,7 +43,6 @@ every paged Git command, such as `git log`:
 ```bash
 git config --global pager.diff 'suiseki'
 git config --global pager.show 'suiseki'
-git config --global interactive.diffFilter 'suiseki --color-only'
 ```
 
 Or open `~/.gitconfig` with your editor and set:
@@ -52,13 +51,10 @@ Or open `~/.gitconfig` with your editor and set:
 [pager]
 	diff = suiseki
 	show = suiseki
-
-[interactive]
-	diffFilter = suiseki --color-only
 ```
 
-With that configured, `git diff`, `git show`, and interactive patch selection
-render through `suiseki`. Plain `git log` keeps Git's normal pager output.
+With that configured, `git diff` and `git show` render through `suiseki`.
+Plain `git log` keeps Git's normal pager output.
 
 ## Configuration
 
@@ -84,7 +80,7 @@ word-diff = "word-alt"       # SUISEKI_PIERRE_WORD_DIFF (word-alt | word | char 
 max-line-diff-length = 1000  # SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH
 
 [shiki]
-theme = "github-dark"        # SUISEKI_SHIKI_THEME (any bundled Shiki theme)
+theme = "pierre-dark"        # SUISEKI_SHIKI_THEME (any bundled Shiki theme or Pierre theme)
 max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
 ```
 
