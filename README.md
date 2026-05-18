@@ -29,7 +29,7 @@ suiseki HEAD~3..HEAD -- src/
 
 # disable the pager
 suiseki --no-pager HEAD~1
-SUISEKI_NO_PAGER=1 git diff | suiseki
+SUISEKI_NO_PAGER=true git diff | suiseki
 
 # override config for one run
 suiseki --view split --theme pierre-light HEAD~1
