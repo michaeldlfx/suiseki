@@ -42,6 +42,7 @@ async function main(): Promise<void> {
   const noPager = parsedOptions.noPager || suisekiEnv.SUISEKI_NO_PAGER === true
   const configuration = await loadConfig({
     overrides: parsedOptions.overrides,
+    suisekiEnv,
   })
   const patch = await readPatchInput(parsedOptions.gitArguments)
 
@@ -99,7 +100,7 @@ function getHelpText(): string {
     "  --no-color   (also honors NO_COLOR env var)",
     "",
     "More:",
-    "  Config: ~/.suiseki/config.toml or .suiseki.toml (per-repo). Env vars: SUISEKI_*.",
+    "  Config: $SUISEKI_CONFIG_DIR/config.toml, $XDG_CONFIG_HOME/suiseki/config.toml, ~/.suiseki/config.toml, or .suiseki.toml (per-repo). Env vars: SUISEKI_*.",
     "  Docs:   https://github.com/michaeldlfx/suiseki#readme",
   ].join("\n")
 }

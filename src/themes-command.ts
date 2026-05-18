@@ -13,10 +13,10 @@ export async function runThemesCommand(): Promise<void> {
   sections.push(...renderThemeSection("Pierre", Object.keys(PIERRE_THEMES)))
   sections.push("")
   sections.push(
-    ...renderThemeSection(
-      "Custom (~/.suiseki/themes/)",
-      Object.keys(configuration.customThemes),
-    ),
+    ...renderThemeSection("Custom", Object.keys(configuration.customThemes)),
+  )
+  sections.push(
+    "  (searched: $SUISEKI_CONFIG_DIR/themes, $XDG_CONFIG_HOME/suiseki/themes, ~/.suiseki/themes)",
   )
   sections.push("")
   sections.push(`Currently selected: ${configuration.shiki.theme}`)

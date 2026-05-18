@@ -42,7 +42,6 @@ type UnifiedDiffLine = {
   inlineHighlightRanges: InlineHighlightRange[]
   kind: DiffLineKind
   lineNumber: number
-  noNewline: boolean
 }
 
 type SplitDiffSide = {
@@ -766,7 +765,6 @@ function resolveUnifiedDiffLine(
         inlineHighlightRanges.deletions.get(line.deletionLine.lineIndex) ?? [],
       kind: "deletion",
       lineNumber: line.deletionLine.lineNumber,
-      noNewline: line.deletionLine.noEOFCR,
     }
   }
 
@@ -777,7 +775,6 @@ function resolveUnifiedDiffLine(
         inlineHighlightRanges.additions.get(line.additionLine.lineIndex) ?? [],
       kind: "addition",
       lineNumber: line.additionLine.lineNumber,
-      noNewline: line.additionLine.noEOFCR,
     }
   }
 
@@ -789,7 +786,6 @@ function resolveUnifiedDiffLine(
     inlineHighlightRanges: [],
     kind: "context",
     lineNumber: line.additionLine.lineNumber,
-    noNewline: line.additionLine.noEOFCR || line.deletionLine.noEOFCR,
   }
 }
 

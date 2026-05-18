@@ -137,11 +137,13 @@ type LoadedConfigFile = {
 type LoadConfigParams = {
   currentWorkingDirectory?: string
   overrides?: SuisekiConfigOverrides
+  suisekiEnv?: SuisekiEnv
 }
 
 export async function loadConfig({
   currentWorkingDirectory = process.cwd(),
   overrides = {},
+  suisekiEnv = readSuisekiEnv(),
 }: LoadConfigParams = {}): Promise<SuisekiConfig> {
   const loadedUserConfigFile = await loadFirstUserConfigFile()
   const loadedRepositoryConfigFile = await loadRepositoryConfigFile({
@@ -150,7 +152,7 @@ export async function loadConfig({
   const userConfiguration = loadedUserConfigFile?.configuration ?? {}
   const repositoryConfiguration =
     loadedRepositoryConfigFile?.configuration ?? {}
-  const environmentOverrides = environmentOverridesFrom(readSuisekiEnv())
+  const environmentOverrides = environmentOverridesFrom(suisekiEnv)
 
   const mergedConfiguration = {
     pierre: {
