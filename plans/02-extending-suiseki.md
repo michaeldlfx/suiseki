@@ -51,3 +51,39 @@ Once the v2 features land, the README needs another pass to reflect the broader 
 
 - [ ] Confirm `@pierre/trees` model imports cleanly without DOM globals (same check as v0 did for `@pierre/diffs`)
 - [ ] Default behavior (`suiseki` with no args) feels right in practice — try both "in a dirty repo" and "in a clean directory"
+
+## `--color-only` interactive diff filter
+
+Git's `interactive.diffFilter` (used by `git add -p`, `git reset -p`, etc.) feeds
+the renderer one diff at a time and expects the output to be a **line-for-line
+colorization** of the input — same line count, same byte structure modulo ANSI
+escapes — because the interactive UI counts lines to map user keystrokes onto
+hunks. v1's `suiseki` doesn't do this: it parses, re-emits headers, gutters,
+backgrounds, and inline word-diff splits, which all change line count.
+
+Removed the `--color-only` advertisement (README + help text + no-op parser) in
+the v1 review pass to avoid pointing users at a broken workflow. This entry
+tracks bringing it back as a real feature.
+
+- [ ] **New module `src/render/color-only.ts`** — separate rendering path. Walks
+      the raw diff input line by line, classifies each line, and emits the
+      same line with ANSI codes added:
+   - File header lines (`diff --git`, `index`, `---`, `+++`): metadata color, unchanged content.
+   - Hunk header lines (`@@ ... @@`): hunk color, unchanged content.
+   - Context / `+` / `-` lines: keep leading `+`/`-`/` ` in place; Shiki-tokenize the rest; emit content with syntax foreground plus the diff +/- background; reset at EOL.
+   - Binary / rename / mode-change headers: pass through colorized but otherwise untouched.
+   - **Invariant: input line count == output line count.** No splitting long lines, no tab expansion, no trailing-whitespace normalization, no inline word-diff (word-diff inserts tokens mid-line and breaks the invariant).
+- [ ] **CLI wiring** — `--color-only` triggers the new path before the normal
+      `renderDiff` / `renderMergeConflictFile` branch in `src/cli.ts`. Merge
+      conflict files pass through to the same line-preserving renderer (no
+      special-case rendering in color-only mode).
+- [ ] **Help text + README** — add `--color-only` back to the options list and
+      restore the `interactive.diffFilter = suiseki --color-only` recommendation
+      in both the bash and `.gitconfig` snippets.
+- [ ] **Tests `src/render/color-only.test.ts`**:
+   - Output line count equals input line count for representative fixtures.
+   - Headers / hunk markers / context / +/- lines all classified correctly.
+   - ANSI strips back to the original byte content for each line.
+   - Word-diff is disabled regardless of config.
+- [ ] **Manual verification** — exercise `git add -p` against a real repo with
+      `interactive.diffFilter` configured, confirm hunk selection still works.
