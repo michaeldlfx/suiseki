@@ -77,13 +77,13 @@ describe("cli-options.ts", () => {
       expect(() => parseCliOptions(["--theme="])).toThrow("requires a value")
     })
 
-    test("consumes the next argument when an inline value is empty", () => {
-      const parsedOptions = parseCliOptions(["--theme=", "github-light"])
-
-      expect(parsedOptions.overrides).toEqual({
-        shiki: { theme: "github-light" },
-      })
-      expect(parsedOptions.gitArguments).toEqual([])
+    test("throws when an inline value is empty even if a next argument exists", () => {
+      expect(() => parseCliOptions(["--theme=", "github-light"])).toThrow(
+        CliOptionsError,
+      )
+      expect(() => parseCliOptions(["--theme=", "github-light"])).toThrow(
+        "requires a value",
+      )
     })
 
     test("throws when a numeric flag has an invalid value", () => {
