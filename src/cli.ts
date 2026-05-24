@@ -3,7 +3,7 @@ import { stripAnsi } from "./ansi"
 import { parseCliOptions } from "./cli-options"
 import { loadConfig, readSuisekiEnv } from "./config"
 import { runConfigCommand } from "./config-command"
-import { getInitPathCandidates, runInitCommandWithIO } from "./init-command"
+import { getDefaultConfigPath, runInitCommandWithIO } from "./init-command"
 import { renderDiff } from "./render/diff"
 import {
   containsMergeConflictMarkers,
@@ -29,12 +29,14 @@ async function main(): Promise<void> {
   }
 
   if (process.argv[2] === "config") {
-    await runConfigCommand()
-    return
-  }
-
-  if (process.argv[2] === "init") {
-    await runInitCommandWithIO(buildInteractiveInitIO())
+    if (process.argv[3] === "--init") {
+      await runInitCommandWithIO({
+        targetPath: getDefaultConfigPath(),
+        io: { promptOverwrite: interactiveOverwritePrompt },
+      })
+    } else {
+      await runConfigCommand()
+    }
     return
   }
 
@@ -81,47 +83,18 @@ async function main(): Promise<void> {
   }
 }
 
-function buildInteractiveInitIO() {
-  return {
-    async promptPathChoice(): Promise<string> {
-      const [xdgPath, legacyPath] = getInitPathCandidates()
-      process.stdout.write(
-        [
-          "Where should suiseki write the config file?",
-          "",
-          `  1) ${xdgPath}  (XDG, higher priority)`,
-          `  2) ${legacyPath}`,
-          "",
-        ].join("\n"),
-      )
-      const answer = await promptLine("Choice [1]: ")
-      const trimmed = answer.trim()
-      if (trimmed === "" || trimmed === "1") return xdgPath
-      if (trimmed === "2") return legacyPath
-      const retry = await promptLine(
-        `Invalid choice "${trimmed}". Choose 1 or 2 [1]: `,
-      )
-      const retrimmed = retry.trim()
-      if (retrimmed === "" || retrimmed === "1") return xdgPath
-      if (retrimmed === "2") return legacyPath
-      throw new Error(`Invalid choice: ${retry.trim()}`)
-    },
-    async promptOverwrite(targetPath: string): Promise<boolean> {
-      const answer = await promptLine(
-        `Config file already exists at ${targetPath}. Overwrite? [y/N]: `,
-      )
-      return answer.trim().toLowerCase() === "y"
-    },
-  }
-}
-
-async function promptLine(question: string): Promise<string> {
+async function interactiveOverwritePrompt(
+  targetPath: string,
+): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close()
-      resolve(answer)
-    })
+    rl.question(
+      `Config file already exists at ${targetPath}. Overwrite? [y/N]: `,
+      (answer) => {
+        rl.close()
+        resolve(answer.trim().toLowerCase() === "y")
+      },
+    )
   })
 }
 
@@ -134,7 +107,7 @@ function getHelpText(): string {
     "  suiseki [options] [git-diff-args...]",
     "  suiseki themes              List available themes",
     "  suiseki config              Print full config reference as annotated TOML",
-    "  suiseki init                Create config file interactively",
+    "  suiseki config --init       Create ~/.suiseki/config.toml",
     "",
     "Examples:",
     "  suiseki --staged",
