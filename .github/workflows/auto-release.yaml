@@ -17,6 +17,13 @@ on:
     types: [closed]
     branches: [main]
 
+# Serialize releases so two PRs merging close together don't race on the bump.
+# The queued run waits for the first to finish, then checks out the already
+# advanced main, so its push fast-forwards instead of failing non-fast-forward.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -64,7 +71,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           bun pm version "${{ steps.level.outputs.level }}"
           tag="v$(bun pm pkg get version | tr -d '"')"
-          git push --follow-tags origin HEAD:main
+          # Push commit and tag explicitly. --follow-tags only pushes annotated
+          # tags, so don't depend on bun's tag type reaching origin.
+          git push origin HEAD:main
+          git push origin "refs/tags/$tag"
           echo "tag=$tag" >>"$GITHUB_OUTPUT"
           echo "Released $tag (${{ steps.level.outputs.level }})."
 
