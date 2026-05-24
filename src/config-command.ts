@@ -1,7 +1,10 @@
 import { DEFAULT_CONFIG } from "./config"
 
 function tomlValue(value: string | number | boolean): string {
-  return typeof value === "string" ? `"${value}"` : String(value)
+  if (typeof value !== "string") {
+    return String(value)
+  }
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
 }
 
 const pierreDefaults = DEFAULT_CONFIG.pierre
