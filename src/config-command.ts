@@ -1,3 +1,12 @@
+import { DEFAULT_CONFIG } from "./config"
+
+function tomlValue(value: string | number | boolean): string {
+  return typeof value === "string" ? `"${value}"` : String(value)
+}
+
+const p = DEFAULT_CONFIG.pierre
+const s = DEFAULT_CONFIG.shiki
+
 export function generateAnnotatedConfig(): string {
   return [
     "# suiseki configuration reference",
@@ -16,42 +25,42 @@ export function generateAnnotatedConfig(): string {
     "# Layout for displaying diffs.",
     '# values: "unified" | "split"',
     "# env:    SUISEKI_PIERRE_VIEW",
-    'view = "unified"',
+    `view = ${tomlValue(p.view)}`,
     "",
     "# Show line numbers in the gutter.",
     "# values: true | false",
     "# env:    SUISEKI_PIERRE_LINE_NUMBERS",
-    "line-numbers = true",
+    `line-numbers = ${tomlValue(p["line-numbers"])}`,
     "",
     "# Style used to mark changed lines.",
     '# values: "sign" | "bar" | "background"',
     "# env:    SUISEKI_PIERRE_CHANGE_INDICATOR",
-    'change-indicator = "sign"',
+    `change-indicator = ${tomlValue(p["change-indicator"])}`,
     "",
     "# Tint diff lines with a background color.",
     "# values: true | false",
     "# env:    SUISEKI_PIERRE_DIFF_BACKGROUND",
-    "diff-background = true",
+    `diff-background = ${tomlValue(p["diff-background"])}`,
     "",
     "# Show the file path header above each changed file.",
     "# values: true | false",
     "# env:    SUISEKI_PIERRE_FILE_HEADER",
-    "file-header = true",
+    `file-header = ${tomlValue(p["file-header"])}`,
     "",
     "# How much of the hunk context line to show.",
     '# values: "none" | "full"',
     "# env:    SUISEKI_PIERRE_HUNK_HEADER",
-    'hunk-header = "none"',
+    `hunk-header = ${tomlValue(p["hunk-header"])}`,
     "",
     "# Word-level diff highlighting within changed lines.",
     '# values: "word-alt" | "word" | "char" | "none"',
     "# env:    SUISEKI_PIERRE_WORD_DIFF",
-    'word-diff = "word-alt"',
+    `word-diff = ${tomlValue(p["word-diff"])}`,
     "",
     "# Skip word-diff on lines longer than this (performance guard).",
     "# values: positive integer",
     "# env:    SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH",
-    "max-line-diff-length = 1000",
+    `max-line-diff-length = ${tomlValue(p["max-line-diff-length"])}`,
     "",
     "[shiki]",
     "",
@@ -61,12 +70,12 @@ export function generateAnnotatedConfig(): string {
     "# Run `suiseki themes` for the full list.",
     "# values: string",
     "# env:    SUISEKI_SHIKI_THEME",
-    'theme = "pierre-dark"',
+    `theme = ${tomlValue(s.theme)}`,
     "",
     "# Skip syntax tokenization on lines longer than this (performance guard).",
     "# values: positive integer",
     "# env:    SUISEKI_SHIKI_MAX_LINE_LENGTH",
-    "max-line-length = 10000",
+    `max-line-length = ${tomlValue(s["max-line-length"])}`,
   ].join("\n")
 }
 

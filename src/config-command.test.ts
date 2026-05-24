@@ -44,7 +44,7 @@ describe("config-command.ts", () => {
       expect(content).toContain("max-line-length =")
     })
 
-    test("includes all SUISEKI_* env var names in comments", () => {
+    test("documents every SUISEKI_* env var except runtime-only ones", () => {
       const content = generateAnnotatedConfig()
       expect(content).toContain("SUISEKI_PIERRE_VIEW")
       expect(content).toContain("SUISEKI_PIERRE_LINE_NUMBERS")
