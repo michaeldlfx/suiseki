@@ -12,7 +12,13 @@ SHELL_NAME="$(basename "$SHELL")"
 
 case "$SHELL_NAME" in
   zsh)  PROFILE="$HOME/.zshrc" ;;
-  bash) PROFILE="$HOME/.bash_profile" ;;
+  bash)
+    if [ "$(uname)" = "Linux" ]; then
+      PROFILE="$HOME/.bashrc"
+    else
+      PROFILE="$HOME/.bash_profile"
+    fi
+    ;;
   fish) PROFILE="$HOME/.config/fish/config.fish" ;;
   *)
     echo "Unknown shell: $SHELL_NAME. Add $BIN_DIR to your PATH manually."
