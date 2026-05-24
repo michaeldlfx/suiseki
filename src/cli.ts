@@ -86,6 +86,12 @@ async function main(): Promise<void> {
 async function interactiveOverwritePrompt(
   targetPath: string,
 ): Promise<boolean> {
+  if (process.stdin.isTTY !== true) {
+    process.stderr.write(
+      `Config file already exists at ${targetPath}. Skipping (stdin is not a TTY).\n`,
+    )
+    return false
+  }
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   return new Promise((resolve) => {
     rl.question(

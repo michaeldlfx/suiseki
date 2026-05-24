@@ -12,7 +12,7 @@ The name is a homage. *Pierre → stone → 水石*. The tool exists to do, for 
 
 ```bash
 # clone and run the one-command setup
-git clone https://github.com/michaeldlf/suiseki
+git clone https://github.com/michaeldlfx/suiseki
 cd suiseki
 make init
 ```
