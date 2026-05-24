@@ -396,6 +396,46 @@ index 1111111..2222222 100644
     expect(renderedDiff).toContain(";48;2;")
   })
 
+  test("measures max-file-lines against the file header's added + removed total", async () => {
+    // BASIC_DIFF's header is -1 +2, so 3 changed lines.
+    const atLimit = await renderDiff(
+      BASIC_DIFF,
+      configWith({ shiki: { "max-file-lines": 3 } }),
+    )
+    const belowLimit = await renderDiff(
+      BASIC_DIFF,
+      configWith({ shiki: { "max-file-lines": 2 } }),
+    )
+
+    expect(stripAnsi(atLimit)).not.toContain("highlighting skipped")
+    expect(stripAnsi(belowLimit)).toContain("highlighting skipped")
+  })
+
+  test("counts only changed lines, not surrounding context, against max-file-lines", async () => {
+    const contextLines = Array.from(
+      { length: 20 },
+      (_, index) => ` const context${index} = ${index}`,
+    ).join("\n")
+    // 20 context lines plus a single changed pair: a -1 +1 header (2 changed
+    // lines). The reconstructed file windows hold 21 lines each, so a metric
+    // that counted those would fall back here; the changed-line metric must not.
+    const contextHeavyDiff = `diff --git a/ctx.ts b/ctx.ts
+index 1111111..2222222 100644
+--- a/ctx.ts
++++ b/ctx.ts
+@@ -1,21 +1,21 @@
+${contextLines}
+-const target = 0
++const target = 1
+`
+    const renderedDiff = await renderDiff(
+      contextHeavyDiff,
+      configWith({ shiki: { "max-file-lines": 5 } }),
+    )
+
+    expect(stripAnsi(renderedDiff)).not.toContain("highlighting skipped")
+  })
+
   test("keeps syntax highlighting and omits the note when within shiki.max-file-lines", async () => {
     const highlightedDiff = await renderDiff(
       BASIC_DIFF,
