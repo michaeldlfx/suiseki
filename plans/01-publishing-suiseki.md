@@ -25,7 +25,10 @@ That's already acceptable, so the goal here is "good enough for the published re
 
 - [ ] Primary distribution: prebuilt binaries via GitHub Releases (Linux x64/arm64, macOS x64/arm64, Windows x64).
 - [ ] GitHub Actions on tag runs `bun test`, builds each target, and uploads binaries to the release.
-- [ ] Install script detects platform, fetches the latest binary, and installs to `/usr/local/bin/`.
+- [ ] Install script (`install.sh`) detects platform, fetches the latest binary from GitHub Releases, and installs to `/usr/local/bin/`.
+- [ ] `suiseki --version` prints the current version (embed at compile time via `bun build --define`).
+- [ ] `suiseki upgrade` checks the GitHub Releases API for a newer version, downloads the matching binary, and replaces the running executable in-place.
+- [ ] Opt-in auto-update check: if enabled in config (`auto-update = true`), suiseki silently checks for a new release in the background on startup and prints a one-line nudge if one is available (`suiseki upgrade` to install). Never upgrades without explicit user action.
 - [ ] Homebrew tap ships a `suiseki.rb` formula.
 - [ ] npm publish decision is made post-v1. If done, name is `suiseki-cli` or scoped `@<handle>/suiseki` with `bin: { suiseki: "..." }`; otherwise squat the name with a placeholder package pointing to the binaries.
 

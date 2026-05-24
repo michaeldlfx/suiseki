@@ -188,7 +188,7 @@ export async function loadConfig({
   })
 }
 
-function getConfigFileCandidates(): string[] {
+export function getConfigFileCandidates(): string[] {
   const homeDirectory =
     Bun.env.HOME != null && Bun.env.HOME !== "" ? Bun.env.HOME : homedir()
   const configFileCandidates: string[] = []

@@ -3,7 +3,7 @@
 BINARY := bin/suiseki
 ENTRYPOINT := src/cli.ts
 
-.PHONY: help install install-frozen run build start test check check-ci format clean
+.PHONY: help install install-frozen run build start clean test check check-ci format setup init
 
 help: ## show this help
 	@echo "usage: make <target>"
@@ -30,6 +30,12 @@ start: ## run build binary
 
 clean: ## remove build artifacts and caches
 	rm -rf bin dist
+
+setup: build ## register suiseki on PATH and create default config (~/.suiseki/config.toml)
+	@chmod +x scripts/setup-path.sh && scripts/setup-path.sh "$(CURDIR)/bin"
+	@./$(BINARY) config --init
+
+init: install build setup ## first-time setup: install deps, build binary, configure shell
 
 # code quality
 test: ## run all tests with coverage

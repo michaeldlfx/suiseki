@@ -8,6 +8,38 @@
 
 The name is a homage. *Pierre → stone → 水石*. The tool exists to do, for code, what suiseki does for stones: take something rough and naturally-occurring — the raw output of `git diff`, the unformatted text of a source file — polish it, and reveal the form underneath. Made to be looked at.
 
+## Getting started
+
+`suiseki` runs on [Bun](https://bun.sh/). If you don't have it yet, install it first:
+
+```bash
+brew install oven-sh/bun/bun
+```
+
+(or follow the [Bun install guide](https://bun.sh/docs/installation) for other platforms).
+
+Then clone and run the one-command setup:
+
+```bash
+git clone https://github.com/michaeldlfx/suiseki
+cd suiseki
+make init
+```
+
+`make init` installs dependencies, builds the `./bin/suiseki` binary, registers it on your `PATH` (zsh, bash, and fish are supported), and creates a default config at `~/.suiseki/config.toml`.
+
+Then wire up `suiseki` as your Git diff pager:
+
+```bash
+git config --global pager.diff 'suiseki'
+git config --global pager.show 'suiseki'
+```
+
+That's it. Run `git diff` and enjoy.
+
+> **Tip:** to customise your config, run `suiseki config` for a fully-annotated
+> reference of every option, or edit `~/.suiseki/config.toml` directly.
+
 ## Status
 
 `suiseki` is in v1 development: unified and split diff views work with Shiki syntax highlighting, theme-derived diff backgrounds, configurable file/hunk headers, line numbers, and pager support. It works both as a piped Unix filter and as a Git pager.
@@ -60,13 +92,31 @@ Plain `git log` keeps Git's normal pager output.
 
 `suiseki` resolves configuration from (highest precedence first):
 
-1. Environment variables
-2. Nearest `.suiseki.toml` found by walking up from the current directory
-3. `$SUISEKI_CONFIG_DIR/config.toml`
-4. `$XDG_CONFIG_HOME/suiseki/config.toml` (defaults to `~/.config/suiseki/config.toml`)
-5. `~/.suiseki/config.toml`
+1. CLI flags
+2. Environment variables (`SUISEKI_*`)
+3. Nearest `.suiseki.toml` found by walking up from the current directory
+4. `$SUISEKI_CONFIG_DIR/config.toml`
+5. `$XDG_CONFIG_HOME/suiseki/config.toml` (defaults to `~/.config/suiseki/config.toml`)
+6. `~/.suiseki/config.toml`
 
-Per-repo `.suiseki.toml` files are read-only and merge on top of user config.
+Per-repo `.suiseki.toml` files merge on top of user config.
+
+### Config reference
+
+Run `suiseki config` to print a fully-annotated reference with every option,
+its valid values, default, and corresponding environment variable:
+
+```bash
+suiseki config
+```
+
+To create `~/.suiseki/config.toml` pre-filled with annotated defaults:
+
+```bash
+suiseki config --init
+```
+
+### Full config with defaults
 
 ```toml
 [pierre]
@@ -86,7 +136,20 @@ max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
 
 Every config key can be overridden with a matching CLI flag, such as
 `--view split`, `--word-diff none`, `--no-line-numbers`, or
-`--max-line-length 5000`.
+`--max-line-length 5000`. Run `suiseki --help` for the full list.
+
+### Themes
+
+Run `suiseki themes` to list all available themes. Built-in Pierre themes:
+
+- `pierre-dark` (default)
+- `pierre-light`
+- `pierre-dark-vibrant`
+- `pierre-light-vibrant`
+
+Any [Shiki bundled theme](https://shiki.style/themes) is also accepted (e.g. `github-dark`, `nord`, `dracula`).
+
+Custom themes can be placed as `.json` VSCode-compatible theme files in `~/.suiseki/themes/`. The filename without `.json` becomes the theme name.
 
 ## Development
 
@@ -100,6 +163,8 @@ Run `make` or `make help` to see all available targets:
 
 | Target | Description |
 |--------|-------------|
+| `make init` | First-time setup: install deps, build binary, register on PATH, create default config |
+| `make setup` | Build binary, register on PATH, and create default config |
 | `make help` | Show all available targets |
 | `make install` | Install dependencies |
 | `make install-frozen` | Install dependencies from lockfile |

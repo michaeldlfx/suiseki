@@ -1,6 +1,9 @@
+import { createInterface } from "node:readline"
 import { stripAnsi } from "./ansi"
 import { parseCliOptions } from "./cli-options"
 import { loadConfig, readSuisekiEnv } from "./config"
+import { runConfigCommand } from "./config-command"
+import { getDefaultConfigPath, runInitCommandWithIO } from "./init-command"
 import { renderDiff } from "./render/diff"
 import {
   containsMergeConflictMarkers,
@@ -22,6 +25,23 @@ class CliError extends Error {
 async function main(): Promise<void> {
   if (process.argv[2] === "themes") {
     await runThemesCommand()
+    return
+  }
+
+  if (process.argv[2] === "config") {
+    const configArgument = process.argv[3]
+    if (configArgument === "--init") {
+      await runInitCommandWithIO({
+        targetPath: getDefaultConfigPath(),
+        io: { promptOverwrite: interactiveOverwritePrompt },
+      })
+    } else if (configArgument === undefined) {
+      await runConfigCommand()
+    } else {
+      throw new CliError(
+        `Unknown argument for 'config': ${configArgument}. Did you mean 'config --init'?`,
+      )
+    }
     return
   }
 
@@ -68,6 +88,27 @@ async function main(): Promise<void> {
   }
 }
 
+async function interactiveOverwritePrompt(
+  targetPath: string,
+): Promise<boolean> {
+  if (process.stdin.isTTY !== true) {
+    process.stderr.write(
+      `Config file already exists at ${targetPath}. Skipping (stdin is not a TTY).\n`,
+    )
+    return false
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  return new Promise((resolve) => {
+    rl.question(
+      `Config file already exists at ${targetPath}. Overwrite? [y/N]: `,
+      (answer) => {
+        rl.close()
+        resolve(answer.trim().toLowerCase() === "y")
+      },
+    )
+  })
+}
+
 function getHelpText(): string {
   return [
     "suiseki - terminal diff renderer",
@@ -76,6 +117,8 @@ function getHelpText(): string {
     "  git diff | suiseki",
     "  suiseki [options] [git-diff-args...]",
     "  suiseki themes              List available themes",
+    "  suiseki config              Print full config reference as annotated TOML",
+    "  suiseki config --init       Create ~/.suiseki/config.toml",
     "",
     "Examples:",
     "  suiseki --staged",
@@ -100,8 +143,8 @@ function getHelpText(): string {
     "  --no-color   (also honors NO_COLOR env var)",
     "",
     "More:",
-    "  Config: $SUISEKI_CONFIG_DIR/config.toml, $XDG_CONFIG_HOME/suiseki/config.toml, ~/.suiseki/config.toml, or .suiseki.toml (per-repo). Env vars: SUISEKI_*.",
-    "  Docs:   https://github.com/michaeldlfx/suiseki#readme",
+    "  Run 'suiseki config' for the full config reference.",
+    "  Docs: https://github.com/michaeldlfx/suiseki#readme",
   ].join("\n")
 }
 
