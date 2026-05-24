@@ -248,6 +248,22 @@ export async function renderDiff(
   return blocks.join("\n")
 }
 
+// The number of changed lines in the file's diff — the `-N +M` total shown in
+// the file header. Counts only change blocks; Pierre's additionLines/
+// deletionLines windows include context on both sides, so they over-count and
+// wouldn't match the number the user sees.
+function countChangedLines(file: FileDiffMetadata): number {
+  let changedLines = 0
+  for (const hunk of file.hunks) {
+    for (const content of hunk.hunkContent) {
+      if (content.type === "change") {
+        changedLines += content.additions + content.deletions
+      }
+    }
+  }
+  return changedLines
+}
+
 type RenderFileDiffParams = {
   configuration: SuisekiConfig
   context: DiffRenderContext
@@ -261,8 +277,7 @@ export async function renderFileDiff({
 }: RenderFileDiffParams): Promise<string[]> {
   const { highlighter, palette, terminalWidth, themeName } = context
   const maxFileLines = configuration.shiki["max-file-lines"]
-  const fileLineCount = file.additionLines.length + file.deletionLines.length
-  const exceedsFileLineLimit = fileLineCount > maxFileLines
+  const exceedsFileLineLimit = countChangedLines(file) > maxFileLines
   // Grammar tokenization is the dominant cost on large files; fall back to
   // plaintext (no grammar) above the configured line limit. Diff backgrounds
   // and gutters are unaffected.
