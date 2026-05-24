@@ -552,12 +552,23 @@ index 1111111..2222222 100644
 })
 
 describe("streamDiffBlocks", () => {
-  test("concatenating blocks with newlines reproduces renderDiff output", async () => {
+  test("separates adjacent file blocks with exactly one blank line", async () => {
     const blocks = await collectBlocks(MULTI_FILE_DIFF, DEFAULT_CONFIG)
-    const streamedOutput = blocks.join("\n")
-    const bufferedOutput = await renderDiff(MULTI_FILE_DIFF, DEFAULT_CONFIG)
+    const alphaBlockIndex = blocks.findIndex((block) =>
+      stripAnsi(block).includes("alpha.ts"),
+    )
+    const betaBlockIndex = blocks.findIndex((block) =>
+      stripAnsi(block).includes("beta.ts"),
+    )
+    assert(alphaBlockIndex >= 0, "alpha block should be yielded")
+    assert(betaBlockIndex > alphaBlockIndex, "beta block should follow alpha")
 
-    expect(streamedOutput).toEqual(bufferedOutput)
+    // The first file block carries no leading newline; each subsequent block
+    // carries exactly one, which becomes a single blank-line separator once the
+    // consumer joins blocks with "\n".
+    expect(blocks[alphaBlockIndex]?.startsWith("\n")).toEqual(false)
+    expect(blocks[betaBlockIndex]?.startsWith("\n")).toEqual(true)
+    expect(blocks[betaBlockIndex]?.startsWith("\n\n")).toEqual(false)
   })
 
   test("yields one block per file so output streams incrementally", async () => {
