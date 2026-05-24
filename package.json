@@ -2,6 +2,7 @@
   "name": "suiseki",
   "type": "module",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "dev": "bun run src/cli.ts",
     "build": "bun build src/cli.ts --compile --outfile bin/suiseki",
