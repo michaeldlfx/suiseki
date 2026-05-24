@@ -31,16 +31,22 @@ if printf '%s' "$PATH" | tr ':' '\n' | grep -qxF "$BIN_DIR"; then
   exit 0
 fi
 
-if grep -qF "$BIN_DIR" "$PROFILE" 2>/dev/null; then
+if [ "$SHELL_NAME" = "fish" ]; then
+  PROFILE_LINE="fish_add_path $BIN_DIR"
+else
+  PROFILE_LINE="export PATH=\"$BIN_DIR:\$PATH\""
+fi
+
+if grep -qxF "$PROFILE_LINE" "$PROFILE" 2>/dev/null; then
   echo "suiseki already configured in $PROFILE (restart your shell to activate)"
   exit 0
 fi
 
 if [ "$SHELL_NAME" = "fish" ]; then
   mkdir -p "$(dirname "$PROFILE")"
-  printf '\nfish_add_path %s\n' "$BIN_DIR" >> "$PROFILE"
+  printf '\n%s\n' "$PROFILE_LINE" >> "$PROFILE"
 else
-  printf '\n# suiseki\nexport PATH="%s:$PATH"\n' "$BIN_DIR" >> "$PROFILE"
+  printf '\n# suiseki\n%s\n' "$PROFILE_LINE" >> "$PROFILE"
 fi
 
 echo "Added $BIN_DIR to PATH in $PROFILE"
