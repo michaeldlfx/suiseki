@@ -168,8 +168,6 @@ Run `make` or `make help` to see all available targets:
 | `make check-ci` | Type check + lint (no auto-fix, for CI) |
 | `make format` | Format code with Biome |
 
-`install.sh` at the repo root is a thin wrapper that runs `make init`, useful as a curl-pipe entry point.
-
 ## Tech Stack
 
 - **Bun** + TypeScript for runtime, tests, and single-binary compilation.
