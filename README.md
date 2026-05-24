@@ -10,8 +10,17 @@ The name is a homage. *Pierre → stone → 水石*. The tool exists to do, for 
 
 ## Getting started
 
+`suiseki` runs on [Bun](https://bun.sh/). If you don't have it yet, install it first:
+
 ```bash
-# clone and run the one-command setup
+brew install oven-sh/bun/bun
+```
+
+(or follow the [Bun install guide](https://bun.sh/docs/installation) for other platforms).
+
+Then clone and run the one-command setup:
+
+```bash
 git clone https://github.com/michaeldlfx/suiseki
 cd suiseki
 make init
