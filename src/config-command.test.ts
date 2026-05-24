@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { parse } from "smol-toml"
+import { DEFAULT_CONFIG } from "./config"
 import { generateAnnotatedConfig, runConfigCommand } from "./config-command"
 
 let stdoutChunks: string[]
@@ -58,23 +59,10 @@ describe("config-command.ts", () => {
     })
 
     test("includes default values", () => {
-      const content = generateAnnotatedConfig()
-      const parsed = parse(content)
+      const parsed = parse(generateAnnotatedConfig())
       expect(parsed).toMatchObject({
-        pierre: {
-          view: "unified",
-          "line-numbers": true,
-          "change-indicator": "sign",
-          "diff-background": true,
-          "file-header": true,
-          "hunk-header": "none",
-          "word-diff": "word-alt",
-          "max-line-diff-length": 1000,
-        },
-        shiki: {
-          theme: "pierre-dark",
-          "max-line-length": 10000,
-        },
+        pierre: DEFAULT_CONFIG.pierre,
+        shiki: DEFAULT_CONFIG.shiki,
       })
     })
   })
