@@ -7,10 +7,12 @@ import { getDefaultConfigPath, runInitCommandWithIO } from "./init-command"
 
 type EnvironmentSnapshot = Record<string, string | undefined>
 
-const ENVIRONMENT_KEYS = ["HOME"]
+const ENVIRONMENT_KEYS = ["HOME", "SUISEKI_CONFIG_DIR", "XDG_CONFIG_HOME"]
 
 let stdoutChunks: string[]
-let originalWrite: typeof process.stdout.write
+let stderrChunks: string[]
+let originalStdoutWrite: typeof process.stdout.write
+let originalStderrWrite: typeof process.stderr.write
 let temporaryDirectory: string
 let environmentSnapshot: EnvironmentSnapshot
 
@@ -20,15 +22,23 @@ describe("init-command.ts", () => {
     temporaryDirectory = await mkdtemp(join(tmpdir(), "suiseki-init-cmd-"))
 
     stdoutChunks = []
-    originalWrite = process.stdout.write.bind(process.stdout)
+    originalStdoutWrite = process.stdout.write.bind(process.stdout)
     process.stdout.write = ((chunk: string | Uint8Array) => {
       stdoutChunks.push(typeof chunk === "string" ? chunk : chunk.toString())
       return true
     }) as typeof process.stdout.write
+
+    stderrChunks = []
+    originalStderrWrite = process.stderr.write.bind(process.stderr)
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      stderrChunks.push(typeof chunk === "string" ? chunk : chunk.toString())
+      return true
+    }) as typeof process.stderr.write
   })
 
   afterEach(() => {
-    process.stdout.write = originalWrite
+    process.stdout.write = originalStdoutWrite
+    process.stderr.write = originalStderrWrite
     restoreEnvironment(environmentSnapshot)
   })
 
@@ -142,6 +152,42 @@ describe("init-command.ts", () => {
       })
 
       expect(await Bun.file(targetPath).exists()).toEqual(true)
+    })
+  })
+
+  describe("shadowing hint", () => {
+    beforeEach(() => {
+      Bun.env.HOME = temporaryDirectory
+      Bun.env.SUISEKI_CONFIG_DIR = undefined
+      Bun.env.XDG_CONFIG_HOME = undefined
+    })
+
+    test("warns when a higher-precedence config already exists", async () => {
+      const shadowingPath = join(
+        temporaryDirectory,
+        ".config",
+        "suiseki",
+        "config.toml",
+      )
+      await Bun.write(shadowingPath, 'theme = "nord"')
+
+      await runInitCommandWithIO({
+        targetPath: getDefaultConfigPath(),
+        io: { promptOverwrite: async () => false },
+      })
+
+      const stderr = stderrChunks.join("")
+      expect(stderr).toContain("higher-precedence config already exists")
+      expect(stderr).toContain(shadowingPath)
+    })
+
+    test("does not warn when no higher-precedence config exists", async () => {
+      await runInitCommandWithIO({
+        targetPath: getDefaultConfigPath(),
+        io: { promptOverwrite: async () => false },
+      })
+
+      expect(stderrChunks.join("")).not.toContain("higher-precedence")
     })
   })
 })
