@@ -3,11 +3,11 @@ import { mkdtemp } from "node:fs/promises"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
 import { parse } from "smol-toml"
-import { getInitPathCandidates, runInitCommandWithIO } from "./init-command"
+import { getDefaultConfigPath, runInitCommandWithIO } from "./init-command"
 
 type EnvironmentSnapshot = Record<string, string | undefined>
 
-const ENVIRONMENT_KEYS = ["HOME", "XDG_CONFIG_HOME"]
+const ENVIRONMENT_KEYS = ["HOME"]
 
 let stdoutChunks: string[]
 let originalWrite: typeof process.stdout.write
@@ -32,46 +32,23 @@ describe("init-command.ts", () => {
     restoreEnvironment(environmentSnapshot)
   })
 
-  describe("getInitPathCandidates", () => {
-    test("returns XDG path using XDG_CONFIG_HOME when set", () => {
-      Bun.env.XDG_CONFIG_HOME = join(temporaryDirectory, "xdg")
+  describe("getDefaultConfigPath", () => {
+    test("returns ~/.suiseki/config.toml using HOME env var", () => {
       Bun.env.HOME = temporaryDirectory
 
-      const [xdgPath] = getInitPathCandidates()
+      const configPath = getDefaultConfigPath()
 
-      expect(xdgPath).toEqual(
-        join(temporaryDirectory, "xdg", "suiseki", "config.toml"),
-      )
-    })
-
-    test("falls back to ~/.config when XDG_CONFIG_HOME is not set", () => {
-      Bun.env.XDG_CONFIG_HOME = undefined
-      Bun.env.HOME = temporaryDirectory
-
-      const [xdgPath] = getInitPathCandidates()
-
-      expect(xdgPath).toEqual(
-        join(temporaryDirectory, ".config", "suiseki", "config.toml"),
-      )
-    })
-
-    test("returns legacy ~/.suiseki path as second candidate", () => {
-      Bun.env.HOME = temporaryDirectory
-
-      const [, legacyPath] = getInitPathCandidates()
-
-      expect(legacyPath).toEqual(
+      expect(configPath).toEqual(
         join(temporaryDirectory, ".suiseki", "config.toml"),
       )
     })
 
-    test("uses homedir() when HOME is not set", () => {
+    test("falls back to homedir() when HOME is not set", () => {
       Bun.env.HOME = undefined
-      Bun.env.XDG_CONFIG_HOME = undefined
 
-      const [, legacyPath] = getInitPathCandidates()
+      const configPath = getDefaultConfigPath()
 
-      expect(legacyPath).toEqual(join(homedir(), ".suiseki", "config.toml"))
+      expect(configPath).toEqual(join(homedir(), ".suiseki", "config.toml"))
     })
   })
 
@@ -80,24 +57,22 @@ describe("init-command.ts", () => {
       const targetPath = join(temporaryDirectory, "suiseki", "config.toml")
 
       await runInitCommandWithIO({
-        promptPathChoice: async () => targetPath,
-        promptOverwrite: async () => false,
+        targetPath,
+        io: { promptOverwrite: async () => false },
       })
 
-      const writtenFile = Bun.file(targetPath)
-      expect(await writtenFile.exists()).toEqual(true)
+      expect(await Bun.file(targetPath).exists()).toEqual(true)
     })
 
     test("written file is valid TOML with default values", async () => {
       const targetPath = join(temporaryDirectory, "suiseki", "config.toml")
 
       await runInitCommandWithIO({
-        promptPathChoice: async () => targetPath,
-        promptOverwrite: async () => false,
+        targetPath,
+        io: { promptOverwrite: async () => false },
       })
 
-      const content = await Bun.file(targetPath).text()
-      const parsed = parse(content)
+      const parsed = parse(await Bun.file(targetPath).text())
       expect(parsed).toMatchObject({
         pierre: { view: "unified", "line-numbers": true },
         shiki: { theme: "pierre-dark" },
@@ -108,12 +83,11 @@ describe("init-command.ts", () => {
       const targetPath = join(temporaryDirectory, "suiseki", "config.toml")
 
       await runInitCommandWithIO({
-        promptPathChoice: async () => targetPath,
-        promptOverwrite: async () => false,
+        targetPath,
+        io: { promptOverwrite: async () => false },
       })
 
-      const output = stdoutChunks.join("")
-      expect(output).toContain(`Created: ${targetPath}`)
+      expect(stdoutChunks.join("")).toContain(`Created: ${targetPath}`)
     })
 
     test("does not write when file exists and overwrite is declined", async () => {
@@ -121,12 +95,11 @@ describe("init-command.ts", () => {
       await Bun.write(targetPath, "original content")
 
       await runInitCommandWithIO({
-        promptPathChoice: async () => targetPath,
-        promptOverwrite: async () => false,
+        targetPath,
+        io: { promptOverwrite: async () => false },
       })
 
-      const content = await Bun.file(targetPath).text()
-      expect(content).toEqual("original content")
+      expect(await Bun.file(targetPath).text()).toEqual("original content")
     })
 
     test("prints Aborted when overwrite is declined", async () => {
@@ -134,12 +107,11 @@ describe("init-command.ts", () => {
       await Bun.write(targetPath, "original content")
 
       await runInitCommandWithIO({
-        promptPathChoice: async () => targetPath,
-        promptOverwrite: async () => false,
+        targetPath,
+        io: { promptOverwrite: async () => false },
       })
 
-      const output = stdoutChunks.join("")
-      expect(output).toContain("Aborted.")
+      expect(stdoutChunks.join("")).toContain("Aborted.")
     })
 
     test("overwrites file when overwrite is confirmed", async () => {
@@ -147,8 +119,8 @@ describe("init-command.ts", () => {
       await Bun.write(targetPath, "original content")
 
       await runInitCommandWithIO({
-        promptPathChoice: async () => targetPath,
-        promptOverwrite: async () => true,
+        targetPath,
+        io: { promptOverwrite: async () => true },
       })
 
       const content = await Bun.file(targetPath).text()
@@ -165,8 +137,8 @@ describe("init-command.ts", () => {
       )
 
       await runInitCommandWithIO({
-        promptPathChoice: async () => targetPath,
-        promptOverwrite: async () => false,
+        targetPath,
+        io: { promptOverwrite: async () => false },
       })
 
       expect(await Bun.file(targetPath).exists()).toEqual(true)
