@@ -1,9 +1,8 @@
 .DEFAULT_GOAL := help
 
 BINARY := bin/suiseki
-ENTRYPOINT := src/cli.ts
 
-.PHONY: help install install-frozen run build start clean test check check-ci format setup init
+.PHONY: help install install-frozen run build release start clean test check check-ci format setup init
 
 help: ## show this help
 	@echo "usage: make <target>"
@@ -22,8 +21,11 @@ install-frozen: ## install dependencies from lockfile
 run: ## run project as typescript sources
 	bun dev
 
-build: ## build binary
-	bun build $(ENTRYPOINT) --compile --outfile $(BINARY)
+build: ## build binary (version stamped from package.json)
+	@scripts/build.sh $(BINARY)
+
+release: ## cross-compile all release targets into dist/ with checksums
+	@scripts/build-release.sh
 
 start: ## run build binary
 	./$(BINARY)
