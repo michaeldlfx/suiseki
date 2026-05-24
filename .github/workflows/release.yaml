@@ -1,0 +1,66 @@
+name: release
+
+# Build all release binaries and publish a GitHub Release for a tag.
+# Releases are CI-only: this workflow is reachable solely via workflow_call from
+# auto-release.yaml (triggered by merging a labeled PR). There is deliberately no
+# tag-push trigger, so pushing a tag by hand publishes nothing.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: tag to build and publish (e.g. v0.1.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install dependencies
+        run: make install-frozen
+
+      - name: verify tag matches package.json version
+        run: |
+          package_version="$(bun pm pkg get version | tr -d '"')"
+          if [ "$TAG" != "v$package_version" ]; then
+            echo "Tag $TAG does not match package.json version v$package_version." >&2
+            echo "Bump with 'bun pm version <patch|minor|major>' so the tag and package.json stay in sync." >&2
+            exit 1
+          fi
+          echo "Tag $TAG matches package.json version."
+
+      - name: run checks
+        run: make check-ci
+
+      - name: run tests
+        run: make test
+
+      - name: build release binaries
+        run: make release
+
+      - name: create github release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$TAG" \
+            dist/suiseki-* dist/checksums.txt \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag
