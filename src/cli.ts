@@ -29,13 +29,18 @@ async function main(): Promise<void> {
   }
 
   if (process.argv[2] === "config") {
-    if (process.argv[3] === "--init") {
+    const configArgument = process.argv[3]
+    if (configArgument === "--init") {
       await runInitCommandWithIO({
         targetPath: getDefaultConfigPath(),
         io: { promptOverwrite: interactiveOverwritePrompt },
       })
-    } else {
+    } else if (configArgument === undefined) {
       await runConfigCommand()
+    } else {
+      throw new CliError(
+        `Unknown argument for 'config': ${configArgument}. Did you mean 'config --init'?`,
+      )
     }
     return
   }
