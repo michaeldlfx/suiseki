@@ -96,7 +96,14 @@ async function main(): Promise<void> {
   let wroteAnyBlock = false
   for await (const block of streamDiffBlocks(patch, configuration)) {
     const renderedBlock = noColor ? stripAnsi(block) : block
-    await writeToStdout(wroteAnyBlock ? `\n${renderedBlock}` : renderedBlock)
+    const pipeOpen = await writeToStdout(
+      wroteAnyBlock ? `\n${renderedBlock}` : renderedBlock,
+    )
+    // The consumer closed the pipe (e.g. `suiseki | head`). Stop rendering
+    // blocks nobody will read rather than churning through a large diff.
+    if (!pipeOpen) {
+      return
+    }
     wroteAnyBlock = true
   }
   if (wroteAnyBlock) {
@@ -104,13 +111,17 @@ async function main(): Promise<void> {
   }
 }
 
-// Resolves once the chunk is flushed (or queued), giving us backpressure
+// Resolves true once the chunk is flushed (or queued), giving us backpressure
 // between file blocks so a slow consumer can't make us buffer the whole diff.
-function writeToStdout(chunk: string): Promise<void> {
+// Resolves false when the consumer closed the pipe (EPIPE) — a clean stop for a
+// Unix filter like `suiseki | head`, not an error.
+function writeToStdout(chunk: string): Promise<boolean> {
   return new Promise((resolve, reject) => {
     process.stdout.write(chunk, (error) => {
       if (error == null) {
-        resolve()
+        resolve(true)
+      } else if ((error as NodeJS.ErrnoException).code === "EPIPE") {
+        resolve(false)
       } else {
         reject(error)
       }
