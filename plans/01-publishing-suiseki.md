@@ -55,7 +55,7 @@ Initial release targets *(all confirmed cross-compiling from macOS arm64 via `sc
 Release validation:
 
 - [x] First pass: prove each target compiles and upload artifacts with checksums. *(Done locally — `make release` builds all 8 + `dist/checksums.txt`. CI upload wired in `release.yaml`.)*
-- [ ] Later pass: smoke-test native artifacts on matching GitHub Actions runners where practical.
+- [x] Later pass: smoke-test native artifacts on matching GitHub Actions runners where practical. *(Built — `.github/workflows/smoke-binaries.yaml`: cross-compiles all targets on one runner (as releases do), then runs each artifact on its native OS runner with the 3-command smoke test. Covers 7/8 targets on free hosted runners — darwin arm64/x64 (macos-14/13), linux x64/arm64 (ubuntu-latest/ubuntu-24.04-arm), both musl via Alpine container, windows-x64. windows-arm64 has no hosted runner. Dispatch-only (`gh workflow run smoke-binaries`), not a per-release gate — it verifies a Bun-toolchain property that rarely changes. Run it once before the first release; pending that run.)*
 - [x] Minimal smoke test: `suiseki --version`, `suiseki --help`, and a tiny fixture diff piped through stdin. *(Done against the native `dist/suiseki-darwin-arm64`; all three pass. Non-native artifacts remain to be smoke-tested on their runners.)*
 - [ ] If cross-built artifacts fail native smoke tests, split release jobs by runner OS/architecture instead of forcing a single-machine cross-build.
 - [ ] Keep Linux x64 on the baseline target unless size/perf tradeoffs justify a separate modern build. Broader CPU compatibility matters more than marginal speed for a diff renderer.
