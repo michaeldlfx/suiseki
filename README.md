@@ -139,10 +139,10 @@ Every config key can be overridden with a matching CLI flag, such as
 `--view split`, `--word-diff none`, `--no-line-numbers`, or
 `--max-line-length 5000`. Run `suiseki --help` for the full list.
 
-`max-file-lines` is a performance guard: when a single file's diff has more
-lines than this, that file renders as plaintext (no syntax highlighting) while
-keeping diff backgrounds and gutters. A dim note in the file header marks any
-file that falls back. See [Performance](#performance).
+`max-file-lines` is a performance guard: when a single file has more added +
+removed lines than this, that file renders as plaintext (no syntax highlighting)
+while keeping diff backgrounds and gutters. A dim note in the file header marks
+any file that falls back. See [Performance](#performance).
 
 ### Themes
 
@@ -165,10 +165,11 @@ the whole diff. Typical files highlight in well under a second.
 
 Render time is dominated by syntax tokenization, so a single very large file
 would otherwise be slow. `shiki.max-file-lines` (default `10000`) guards against
-that: a file whose diff exceeds that many lines renders as plaintext — keeping
-diff backgrounds, gutters, and a dim note in its header — rather than paying for
-grammar highlighting on a file you are usually scrolling past anyway (lockfiles,
-generated bundles, snapshots). Adjust it in config or with `--max-file-lines`.
+that: a file with more added + removed lines than this renders as plaintext —
+keeping diff backgrounds, gutters, and a dim note in its header — rather than
+paying for grammar highlighting on a file you are usually scrolling past anyway
+(lockfiles, generated bundles, snapshots). Adjust it in config or with
+`--max-file-lines`.
 
 ## Development
 
