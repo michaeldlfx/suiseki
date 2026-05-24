@@ -14,10 +14,20 @@ const vLatestRelease = type({ tag_name: "string" })
 
 function detectMusl(platform: NodeJS.Platform): boolean {
   if (platform !== "linux") return false
-  return (
+  if (
     existsSync("/lib/ld-musl-x86_64.so.1") ||
     existsSync("/lib/ld-musl-aarch64.so.1")
-  )
+  ) {
+    return true
+  }
+  // Also honor `ldd --version` reporting musl, matching scripts/install.sh so
+  // upgrade and the install script resolve the same asset on a given host.
+  try {
+    const ldd = Bun.spawnSync(["ldd", "--version"])
+    return /musl/i.test(`${ldd.stdout.toString()}${ldd.stderr.toString()}`)
+  } catch {
+    return false
+  }
 }
 
 // Bun standalone executables resolve modules from a virtual filesystem
