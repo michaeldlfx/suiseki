@@ -5,6 +5,7 @@ import { vCliConfigOverrides } from "./config"
 export const vParsedCliOptions = type({
   gitArguments: "string[]",
   help: "boolean",
+  version: "boolean",
   noColor: "boolean",
   noPager: "boolean",
   overrides: vCliConfigOverrides,
@@ -60,6 +61,7 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
   const parsedOptions: DraftParsedCliOptions = {
     gitArguments: [],
     help: false,
+    version: false,
     noColor: false,
     noPager: false,
     overrides: {},
@@ -75,6 +77,11 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
 
     if (argument === "--help" || argument === "-h") {
       parsedOptions.help = true
+      continue
+    }
+
+    if (argument === "--version" || argument === "-v") {
+      parsedOptions.version = true
       continue
     }
 

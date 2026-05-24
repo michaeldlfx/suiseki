@@ -1,0 +1,89 @@
+name: auto-release
+
+# When a PR labeled patch | minor | major merges into main, bump the version,
+# tag it, push, then build and publish the release.
+#
+# The bump/tag/push and the build/publish run in one workflow run (the publish
+# job calls release.yaml via `uses:`), so we never rely on the pushed tag to
+# re-trigger a workflow — events from the default GITHUB_TOKEN do not trigger
+# further workflow runs.
+#
+# Note: the bump commit and tag are pushed to main with GITHUB_TOKEN. If main is
+# branch-protected, allow this workflow (or a bot) to bypass protection, or swap
+# in a PAT / GitHub App token.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+# Serialize releases so two PRs merging close together don't race on the bump.
+# The queued run waits for the first to finish, then checks out the already
+# advanced main, so its push fast-forwards instead of failing non-fast-forward.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: bump and tag
+    if: >
+      github.event.pull_request.merged == true &&
+      (contains(github.event.pull_request.labels.*.name, 'patch') ||
+       contains(github.event.pull_request.labels.*.name, 'minor') ||
+       contains(github.event.pull_request.labels.*.name, 'major'))
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+
+    steps:
+      - name: determine release level from label
+        id: level
+        run: |
+          if ${{ contains(github.event.pull_request.labels.*.name, 'major') }}; then
+            echo "level=major" >>"$GITHUB_OUTPUT"
+          elif ${{ contains(github.event.pull_request.labels.*.name, 'minor') }}; then
+            echo "level=minor" >>"$GITHUB_OUTPUT"
+          else
+            echo "level=patch" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: checkout main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install dependencies
+        run: make install-frozen
+
+      - name: bump, tag, and push
+        id: bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          bun pm version "${{ steps.level.outputs.level }}"
+          tag="v$(bun pm pkg get version | tr -d '"')"
+          # Push commit and tag explicitly. --follow-tags only pushes annotated
+          # tags, so don't depend on bun's tag type reaching origin.
+          git push origin HEAD:main
+          git push origin "refs/tags/$tag"
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "Released $tag (${{ steps.level.outputs.level }})."
+
+  publish:
+    name: publish
+    needs: tag
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yaml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit

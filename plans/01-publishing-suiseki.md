@@ -26,13 +26,14 @@ That's already acceptable, so the goal here is "good enough for the published re
 ## Publishing
 
 - [ ] Primary distribution: prebuilt binaries via GitHub Releases (Linux x64/arm64, macOS x64/arm64, Windows x64).
-- [ ] GitHub Actions on tag runs `bun test`, builds each target, and uploads binaries to the release.
-- [ ] Install script (`install.sh`) detects platform, fetches the latest binary from GitHub Releases, and installs to `/usr/local/bin/`.
-- [ ] `suiseki --version` prints the current version (embed at compile time via `bun build --define`).
-- [ ] `suiseki upgrade` checks the GitHub Releases API for a newer version, downloads the matching binary, and replaces the running executable in-place.
-- [ ] Opt-in auto-update check: if enabled in config (`auto-update = true`), suiseki silently checks for a new release in the background on startup and prints a one-line nudge if one is available (`suiseki upgrade` to install). Never upgrades without explicit user action.
-- [ ] Homebrew tap ships a `suiseki.rb` formula.
-- [ ] npm publish decision is made post-v1. If done, name is `suiseki-cli` or scoped `@<handle>/suiseki` with `bin: { suiseki: "..." }`; otherwise squat the name with a placeholder package pointing to the binaries.
+- [x] GitHub Actions runs `bun test`, builds each target, and uploads binaries to the release. *(Done — `.github/workflows/release.yaml` (reusable via `workflow_call` only, no tag-push trigger): checks out the tag, asserts tag == package.json version, runs check-ci + tests, `make release`, then `gh release create` with binaries + checksums.)*
+- [x] Install script (`install.sh`) detects platform, fetches the latest binary from GitHub Releases, and installs to `/usr/local/bin/`. *(Done — `scripts/install.sh`: detects OS/arch + musl, resolves the asset, downloads it + `checksums.txt`, verifies SHA-256, installs to `/usr/local/bin` (override via `SUISEKI_INSTALL_DIR`), pins via `SUISEKI_VERSION`/arg. Full `make init` parity: also reuses `setup-path.sh` to register PATH and runs `config --init`. README install section updated.)*
+- [x] **Label-driven auto-release, CI-only** *(added during this pass, beyond the original plan)*. Releases happen only through CI — there is no manual path. `auto-release.yaml`: a PR into `main` labeled `patch`/`minor`/`major`, on merge, bumps + tags + pushes then calls `release.yaml` (single run; never relies on the `GITHUB_TOKEN` tag push re-triggering a workflow). `release.yaml` is `workflow_call`-only (no tag trigger), so a hand-pushed tag publishes nothing. `release-guard.yaml` requires exactly one semver label per PR and forbids hand-editing the `package.json` version. *(Caveats: if `main` is branch-protected, the auto bump/tag push needs bypass or a PAT/App token. Every merged PR releases — no `no-release` escape hatch yet, and bot PRs like renovate need a semver label.)*
+- [x] `suiseki --version` prints the current version (embed at compile time via `bun build --define`). *(Done — `src/version.ts` reads a `--define`'d `SUISEKI_VERSION`, falling back to `"dev"` for `bun run`. `scripts/build.sh` stamps it from `package.json` via `bun pm pkg get version` (its JSON-quoted output doubles as the JS string literal `--define` needs). `package.json` `version` is canonical; release flow is `bun pm version <patch|minor|major>` which bumps + tags `vX.Y.Z` so the tag can't drift. `--version`/`-v` wired in the CLI.)*
+- [x] `suiseki upgrade` checks the GitHub Releases API for a newer version, downloads the matching binary, and replaces the running executable in-place. *(Done — `upgrade-command.ts` holds the decision logic behind a `ReleaseClient` port (unit-tested with an in-memory fake); `upgrade-io.ts` is the real fetch/fs adapter (excluded from coverage). Resolves the platform asset (incl. musl), verifies SHA-256, then temp-write + atomic rename over `process.execPath`. A "dev" compiled binary always pulls latest (clean path back to mainline). Refuses when running from source (`bun run`, where execPath is the bun runtime — detected via the `$bunfs` standalone marker) and on Windows. Verified end-to-end in a compiled binary.)*
+- [~] ~~Opt-in auto-update check~~ **Cancelled.** suiseki is a short-lived filter with no in-process background, so a startup nudge would mean either slowing the hot path or a detached-child + disk-cache dance. Not worth the complexity; `suiseki upgrade` (explicit) covers updating.
+- [x] Homebrew tap ships a `suiseki.rb` formula. *(Done — lives in the separate `michaeldlfx/homebrew-suiseki` tap repo (Homebrew requires the `homebrew-` prefix; `brew install michaeldlfx/suiseki/suiseki`). `scripts/generate-formula.sh` renders the formula from a release's `checksums.txt` (4 glibc/macOS targets; `on_macos`/`on_linux` × `on_arm`/`on_intel`). Token-free `update-formula.yaml` (weekly backstop + `workflow_dispatch`) regenerates and commits it using the tap's own `GITHUB_TOKEN`, reading suiseki's public releases — no cross-repo token. Deliberately input-less so a dispatch caller can't redirect the source. `suiseki.rb` is created on first run after a release. brew install line added to suiseki README. Caveat: cron auto-disables after ~60 days of tap inactivity.)*
+- [~] ~~npm publish~~ **Not doing** (user decision: binaries are the distribution story). No npm package, squat, or placeholder.
 
 ## Release target policy
 
@@ -40,21 +41,21 @@ Local development builds write only `bin/suiseki`. Release builds write named ar
 
 Bun supports cross-compiling standalone executables with `bun build --compile --target=...`, so the first release workflow should try a cross-build matrix before adding per-platform build runners. Do not add GitHub Actions workflows until release work starts.
 
-Initial release targets:
+Initial release targets *(all confirmed cross-compiling from macOS arm64 via `scripts/build-release.sh` / `make release`; single-machine matrix is viable)*:
 
-- [ ] `bun-darwin-arm64` → `dist/suiseki-darwin-arm64`
-- [ ] `bun-darwin-x64` → `dist/suiseki-darwin-x64`
-- [ ] `bun-linux-x64-baseline` → `dist/suiseki-linux-x64`
-- [ ] `bun-linux-arm64` → `dist/suiseki-linux-arm64`
-- [ ] `bun-linux-x64-musl` → `dist/suiseki-linux-x64-musl`
-- [ ] `bun-linux-arm64-musl` → `dist/suiseki-linux-arm64-musl`
-- [ ] `bun-windows-x64` → `dist/suiseki-windows-x64.exe`
-- [ ] `bun-windows-arm64` → `dist/suiseki-windows-arm64.exe`
+- [x] `bun-darwin-arm64` → `dist/suiseki-darwin-arm64`
+- [x] `bun-darwin-x64` → `dist/suiseki-darwin-x64`
+- [x] `bun-linux-x64-baseline` → `dist/suiseki-linux-x64`
+- [x] `bun-linux-arm64` → `dist/suiseki-linux-arm64`
+- [x] `bun-linux-x64-musl` → `dist/suiseki-linux-x64-musl`
+- [x] `bun-linux-arm64-musl` → `dist/suiseki-linux-arm64-musl`
+- [x] `bun-windows-x64` → `dist/suiseki-windows-x64.exe`
+- [x] `bun-windows-arm64` → `dist/suiseki-windows-arm64.exe`
 
 Release validation:
 
-- [ ] First pass: prove each target compiles and upload artifacts with checksums.
-- [ ] Later pass: smoke-test native artifacts on matching GitHub Actions runners where practical.
-- [ ] Minimal smoke test: `suiseki --version`, `suiseki --help`, and a tiny fixture diff piped through stdin.
+- [x] First pass: prove each target compiles and upload artifacts with checksums. *(Done locally — `make release` builds all 8 + `dist/checksums.txt`. CI upload wired in `release.yaml`.)*
+- [x] Later pass: smoke-test native artifacts on matching GitHub Actions runners where practical. *(Built — `.github/workflows/smoke-binaries.yaml`: cross-compiles all targets on one runner (as releases do), then runs each artifact on its native OS runner with the 3-command smoke test. Covers 7/8 targets on free hosted runners — darwin arm64/x64 (macos-14/13), linux x64/arm64 (ubuntu-latest/ubuntu-24.04-arm), both musl via Alpine container, windows-x64. windows-arm64 has no hosted runner. Dispatch-only (`gh workflow run smoke-binaries`), not a per-release gate — it verifies a Bun-toolchain property that rarely changes. Run it once before the first release; pending that run.)*
+- [x] Minimal smoke test: `suiseki --version`, `suiseki --help`, and a tiny fixture diff piped through stdin. *(Done against the native `dist/suiseki-darwin-arm64`; all three pass. Non-native artifacts remain to be smoke-tested on their runners.)*
 - [ ] If cross-built artifacts fail native smoke tests, split release jobs by runner OS/architecture instead of forcing a single-machine cross-build.
 - [ ] Keep Linux x64 on the baseline target unless size/perf tradeoffs justify a separate modern build. Broader CPU compatibility matters more than marginal speed for a diff renderer.

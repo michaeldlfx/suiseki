@@ -10,6 +10,8 @@ import {
   renderMergeConflictFile,
 } from "./render/merge-conflict"
 import { runThemesCommand } from "./themes-command"
+import { runUpgradeCommand } from "./upgrade-io"
+import { version } from "./version"
 
 class CliError extends Error {
   override name = "CliError"
@@ -25,6 +27,11 @@ class CliError extends Error {
 async function main(): Promise<void> {
   if (process.argv[2] === "themes") {
     await runThemesCommand()
+    return
+  }
+
+  if (process.argv[2] === "upgrade") {
+    await runUpgradeCommand()
     return
   }
 
@@ -46,6 +53,10 @@ async function main(): Promise<void> {
   }
 
   const parsedOptions = parseCliOptions(process.argv.slice(2))
+  if (parsedOptions.version) {
+    process.stdout.write(`suiseki ${version}\n`)
+    return
+  }
   if (parsedOptions.help) {
     process.stdout.write(`${getHelpText()}\n`)
     return
@@ -160,6 +171,7 @@ function getHelpText(): string {
     "  suiseki themes              List available themes",
     "  suiseki config              Print full config reference as annotated TOML",
     "  suiseki config --init       Create ~/.suiseki/config.toml",
+    "  suiseki upgrade             Update to the latest release",
     "",
     "Examples:",
     "  suiseki --staged",
@@ -183,6 +195,7 @@ function getHelpText(): string {
     "  --max-file-lines <number>",
     "  --no-pager",
     "  --no-color   (also honors NO_COLOR env var)",
+    "  --version    Print the suiseki version",
     "",
     "More:",
     "  Run 'suiseki config' for the full config reference.",

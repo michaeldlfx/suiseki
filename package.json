@@ -5,7 +5,8 @@
   "license": "Apache-2.0",
   "scripts": {
     "dev": "bun run src/cli.ts",
-    "build": "bun build src/cli.ts --compile --outfile bin/suiseki",
+    "build": "scripts/build.sh bin/suiseki",
+    "build:release": "scripts/build-release.sh",
     "start": "./bin/suiseki",
     "clean": "rm -rf bin dist",
     "test": "bun test --pass-with-no-tests",

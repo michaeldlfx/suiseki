@@ -54,6 +54,15 @@ describe("cli-options.ts", () => {
       expect(parsedOptions.overrides).toEqual({})
     })
 
+    test("parses --version and -v into the version flag", () => {
+      expect(parseCliOptions(["--version"]).version).toEqual(true)
+      expect(parseCliOptions(["-v"]).version).toEqual(true)
+    })
+
+    test("defaults version to false when --version absent", () => {
+      expect(parseCliOptions([]).version).toEqual(false)
+    })
+
     test("parses --no-color into noColor flag", () => {
       const parsedOptions = parseCliOptions(["--no-color"])
 

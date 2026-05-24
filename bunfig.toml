@@ -8,4 +8,6 @@ coverageDir = "coverage"
 coverageReporter = ["text", "lcov"]
 coverageSkipTestFiles = true
 coverageThreshold = { lines = 0.8, functions = 0.8, statements = 0.8 }
-coveragePathIgnorePatterns = ["src/vendor/**"]
+# upgrade-io.ts is the network/filesystem adapter for `suiseki upgrade`; its
+# logic is covered through the ReleaseClient port in upgrade-command.test.ts.
+coveragePathIgnorePatterns = ["src/vendor/**", "src/upgrade-io.ts"]
