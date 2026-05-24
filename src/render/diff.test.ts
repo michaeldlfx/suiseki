@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import assert from "node:assert"
 import { RESET, stripAnsi } from "../ansi"
 import { DEFAULT_CONFIG, type SuisekiConfig } from "../config"
-import { renderDiff } from "./diff"
+import { renderDiff, streamDiffBlocks } from "./diff"
 
 const BASIC_DIFF = `diff --git a/src/example.ts b/src/example.ts
 index 1111111..2222222 100644
@@ -27,11 +27,62 @@ index 1111111..2222222 100644
 +const message = "hello new world"
 `
 
+const MULTI_FILE_DIFF = `diff --git a/src/alpha.ts b/src/alpha.ts
+index 1111111..2222222 100644
+--- a/src/alpha.ts
++++ b/src/alpha.ts
+@@ -1 +1 @@
+-const alpha = 1
++const alpha = 2
+diff --git a/src/beta.ts b/src/beta.ts
+index 3333333..4444444 100644
+--- a/src/beta.ts
++++ b/src/beta.ts
+@@ -1 +1 @@
+-const beta = 1
++const beta = 2
+`
+
 const ANSI_ESCAPE = String.fromCharCode(27)
 const BACKGROUND_ESCAPE_PATTERN = new RegExp(
   `${ANSI_ESCAPE}\\[[0-9;]*48;2;[0-9;]+m`,
   "g",
 )
+const FOREGROUND_ESCAPE_PATTERN = /38;2;[0-9;]+m/g
+
+function countForegroundEscapes(value: string): number {
+  return value.match(FOREGROUND_ESCAPE_PATTERN)?.length ?? 0
+}
+
+function makeLargePatch(params: {
+  files: number
+  linesPerFile: number
+}): string {
+  const parts: string[] = []
+  for (let fileIndex = 0; fileIndex < params.files; fileIndex++) {
+    const path = `src/module-${fileIndex}.ts`
+    parts.push(`diff --git a/${path} b/${path}`)
+    parts.push("index 1111111..2222222 100644")
+    parts.push(`--- a/${path}`)
+    parts.push(`+++ b/${path}`)
+    parts.push(`@@ -1,${params.linesPerFile} +1,${params.linesPerFile} @@`)
+    for (let line = 0; line < params.linesPerFile; line++) {
+      parts.push(`+const value${line} = ${line}`)
+    }
+  }
+  return `${parts.join("\n")}\n`
+}
+
+async function collectBlocks(
+  patch: string,
+  configuration: SuisekiConfig,
+): Promise<string[]> {
+  const blocks: string[] = []
+  for await (const block of streamDiffBlocks(patch, configuration)) {
+    blocks.push(block)
+  }
+  return blocks
+}
 
 function configWith(overrides: {
   customThemes?: SuisekiConfig["customThemes"]
@@ -331,6 +382,77 @@ index 1111111..2222222 100644
     expect(plainRenderedDiff).toContain(longLine)
   })
 
+  test("falls back to plaintext with a header note when a file exceeds shiki.max-file-lines", async () => {
+    const renderedDiff = await renderDiff(
+      BASIC_DIFF,
+      configWith({ shiki: { "max-file-lines": 1 } }),
+    )
+    const plainRenderedDiff = stripAnsi(renderedDiff)
+
+    // The note reflects the configured limit rather than a hardcoded value.
+    expect(plainRenderedDiff).toContain("highlighting skipped (>1 lines)")
+    // Content and diff backgrounds are unaffected by the fallback.
+    expect(plainRenderedDiff).toContain("console.info(message)")
+    expect(renderedDiff).toContain(";48;2;")
+  })
+
+  test("measures max-file-lines against the file header's added + removed total", async () => {
+    // BASIC_DIFF's header is -1 +2, so 3 changed lines.
+    const atLimit = await renderDiff(
+      BASIC_DIFF,
+      configWith({ shiki: { "max-file-lines": 3 } }),
+    )
+    const belowLimit = await renderDiff(
+      BASIC_DIFF,
+      configWith({ shiki: { "max-file-lines": 2 } }),
+    )
+
+    expect(stripAnsi(atLimit)).not.toContain("highlighting skipped")
+    expect(stripAnsi(belowLimit)).toContain("highlighting skipped")
+  })
+
+  test("counts only changed lines, not surrounding context, against max-file-lines", async () => {
+    const contextLines = Array.from(
+      { length: 20 },
+      (_, index) => ` const context${index} = ${index}`,
+    ).join("\n")
+    // 20 context lines plus a single changed pair: a -1 +1 header (2 changed
+    // lines). The reconstructed file windows hold 21 lines each, so a metric
+    // that counted those would fall back here; the changed-line metric must not.
+    const contextHeavyDiff = `diff --git a/ctx.ts b/ctx.ts
+index 1111111..2222222 100644
+--- a/ctx.ts
++++ b/ctx.ts
+@@ -1,21 +1,21 @@
+${contextLines}
+-const target = 0
++const target = 1
+`
+    const renderedDiff = await renderDiff(
+      contextHeavyDiff,
+      configWith({ shiki: { "max-file-lines": 5 } }),
+    )
+
+    expect(stripAnsi(renderedDiff)).not.toContain("highlighting skipped")
+  })
+
+  test("keeps syntax highlighting and omits the note when within shiki.max-file-lines", async () => {
+    const highlightedDiff = await renderDiff(
+      BASIC_DIFF,
+      configWith({ shiki: { "max-file-lines": 10000 } }),
+    )
+    const fallbackDiff = await renderDiff(
+      BASIC_DIFF,
+      configWith({ shiki: { "max-file-lines": 1 } }),
+    )
+
+    expect(stripAnsi(highlightedDiff)).not.toContain("highlighting skipped")
+    // Skipping the grammar yields fewer per-token foreground colors.
+    expect(countForegroundEscapes(fallbackDiff)).toBeLessThan(
+      countForegroundEscapes(highlightedDiff),
+    )
+  })
+
   test("renders split view with paired deletion and addition columns", async () => {
     const configuration = configWith({
       pierre: { view: "split" },
@@ -467,4 +589,52 @@ index 1111111..2222222 100644
       countBackgroundEscapes(renderedDiffWithoutInlineHighlights),
     )
   })
+})
+
+describe("streamDiffBlocks", () => {
+  test("separates adjacent file blocks with exactly one blank line", async () => {
+    const blocks = await collectBlocks(MULTI_FILE_DIFF, DEFAULT_CONFIG)
+    const alphaBlockIndex = blocks.findIndex((block) =>
+      stripAnsi(block).includes("alpha.ts"),
+    )
+    const betaBlockIndex = blocks.findIndex((block) =>
+      stripAnsi(block).includes("beta.ts"),
+    )
+    assert(alphaBlockIndex >= 0, "alpha block should be yielded")
+    assert(betaBlockIndex > alphaBlockIndex, "beta block should follow alpha")
+
+    // The first file block carries no leading newline; each subsequent block
+    // carries exactly one, which becomes a single blank-line separator once the
+    // consumer joins blocks with "\n".
+    expect(blocks[alphaBlockIndex]?.startsWith("\n")).toEqual(false)
+    expect(blocks[betaBlockIndex]?.startsWith("\n")).toEqual(true)
+    expect(blocks[betaBlockIndex]?.startsWith("\n\n")).toEqual(false)
+  })
+
+  test("yields one block per file so output streams incrementally", async () => {
+    const blocks = await collectBlocks(MULTI_FILE_DIFF, DEFAULT_CONFIG)
+    const alphaBlockIndex = blocks.findIndex((block) =>
+      stripAnsi(block).includes("alpha.ts"),
+    )
+    const betaBlockIndex = blocks.findIndex((block) =>
+      stripAnsi(block).includes("beta.ts"),
+    )
+
+    expect(blocks.length).toBeGreaterThanOrEqual(2)
+    expect(alphaBlockIndex).toBeGreaterThanOrEqual(0)
+    // The first file is yielded before the second, so a consumer can write it
+    // without waiting for the whole diff to render.
+    expect(betaBlockIndex).toBeGreaterThan(alphaBlockIndex)
+  })
+
+  test("renders a large multi-thousand-line patch to completion", async () => {
+    const largePatch = makeLargePatch({ files: 3, linesPerFile: 1500 })
+    const blocks = await collectBlocks(largePatch, DEFAULT_CONFIG)
+    const plainStreamedOutput = stripAnsi(blocks.join("\n"))
+
+    expect(blocks.length).toBeGreaterThanOrEqual(3)
+    expect(plainStreamedOutput).toContain("module-0.ts")
+    expect(plainStreamedOutput).toContain("module-2.ts")
+    expect(plainStreamedOutput).toContain("const value1499 = 1499")
+  }, 30000)
 })

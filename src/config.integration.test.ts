@@ -88,6 +88,7 @@ describe("config.ts", () => {
         shiki: {
           theme: "github-light",
           "max-line-length": 5000,
+          "max-file-lines": 10000,
         },
         customThemes: {},
       })

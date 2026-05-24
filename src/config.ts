@@ -21,6 +21,7 @@ const vSuisekiEnv = type({
   "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH?": vPositiveIntegerString,
   "SUISEKI_SHIKI_THEME?": "string",
   "SUISEKI_SHIKI_MAX_LINE_LENGTH?": vPositiveIntegerString,
+  "SUISEKI_SHIKI_MAX_FILE_LINES?": vPositiveIntegerString,
   "SUISEKI_NO_PAGER?": vStringBoolean,
 })
 
@@ -57,6 +58,7 @@ const PIERRE_CONFIG_FIELDS = {
 const SHIKI_CONFIG_FIELDS = {
   theme: "string",
   "max-line-length": vPositiveInteger,
+  "max-file-lines": vPositiveInteger,
 } as const
 
 const CLI_PIERRE_CONFIG_FIELDS = {
@@ -67,6 +69,7 @@ const CLI_PIERRE_CONFIG_FIELDS = {
 const CLI_SHIKI_CONFIG_FIELDS = {
   ...SHIKI_CONFIG_FIELDS,
   "max-line-length": vPositiveIntegerString,
+  "max-file-lines": vPositiveIntegerString,
 } as const
 
 export const vPierreConfig = type(PIERRE_CONFIG_FIELDS)
@@ -121,6 +124,7 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
   shiki: {
     theme: "pierre-dark",
     "max-line-length": 10000,
+    "max-file-lines": 10000,
   },
   customThemes: {},
 }
@@ -320,6 +324,9 @@ function environmentOverridesFrom(env: SuisekiEnv): SuisekiConfigOverrides {
   }
   if (env.SUISEKI_SHIKI_MAX_LINE_LENGTH !== undefined) {
     shiki["max-line-length"] = env.SUISEKI_SHIKI_MAX_LINE_LENGTH
+  }
+  if (env.SUISEKI_SHIKI_MAX_FILE_LINES !== undefined) {
+    shiki["max-file-lines"] = env.SUISEKI_SHIKI_MAX_FILE_LINES
   }
 
   const overrides: DraftSuisekiConfigOverrides = {}

@@ -37,6 +37,7 @@ const VALUE_FLAGS: Record<string, CliFlagTarget> = {
   },
   "--theme": { section: "shiki", key: "theme" },
   "--max-line-length": { section: "shiki", key: "max-line-length" },
+  "--max-file-lines": { section: "shiki", key: "max-file-lines" },
 }
 
 const BOOLEAN_FLAGS: Record<string, CliFlagTarget> = {

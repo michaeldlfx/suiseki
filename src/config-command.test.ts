@@ -42,6 +42,7 @@ describe("config-command.ts", () => {
       const content = generateAnnotatedConfig()
       expect(content).toContain("theme =")
       expect(content).toContain("max-line-length =")
+      expect(content).toContain("max-file-lines =")
     })
 
     test("documents every SUISEKI_* env var except runtime-only ones", () => {
@@ -56,6 +57,7 @@ describe("config-command.ts", () => {
       expect(content).toContain("SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH")
       expect(content).toContain("SUISEKI_SHIKI_THEME")
       expect(content).toContain("SUISEKI_SHIKI_MAX_LINE_LENGTH")
+      expect(content).toContain("SUISEKI_SHIKI_MAX_FILE_LINES")
     })
 
     test("includes default values", () => {

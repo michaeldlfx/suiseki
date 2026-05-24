@@ -7,7 +7,7 @@
 A modern terminal renderer for code, built on Pierre's parsing logic and Shiki's syntax/theme system. Phases:
 
 - [x] **v0** — unified-view diff renderer that works locally. Couple of hours.
-- [ ] **v1** — practical terminal diff renderer. Split view, inline word diff, themes, pager integration, binaries on GH Releases. Real release. *(features done; README polish in this file + publishing in `01-publishing-suiseki.md` outstanding)*
+- [ ] **v1** — practical terminal diff renderer. Split view, inline word diff, themes, pager integration, binaries on GH Releases. Real release. *(features done; release engineering in `01-publishing-suiseki.md` outstanding. Public-facing README polish — screenshots, peer comparison, theme gallery, install docs — moved to `03-making-suiseki-public.md`.)*
 - [ ] **v2** — expand beyond diffs to file viewing (`cat`/`bat` alternative — maybe we suggest aliasing as `sat` (s for `suiseki`, at to mirror `cat`/`bat`)? or provide that out of the box?) and static tree printing. "Pierre's renderer, in your terminal." *(tracked in `02-extending-suiseki.md`)*
 
 ## Progress tracking
@@ -22,8 +22,8 @@ Use this file as the durable cross-session source of truth.
 - Keep the parent phase unchecked until all of its child items are implemented, verified, and committed.
 - If a plan item changes scope, update the unchecked text before implementing rather than checking an obsolete item.
 - For handoff across sessions, leave the next unchecked item obvious and avoid relying on chat history.
-- The roadmap spans three files: `00-building-suiseki.md` (this file — v0/v1 features, v1 README polish, project-wide architecture and out-of-scope), `01-publishing-suiseki.md` (v1 perf pass + release engineering: binaries, GH Releases, Homebrew, install script, npm decision), and `02-extending-suiseki.md` (v2 work — `view`, `tree`, subcommand router, v2 README update). Treat each file as the authoritative checklist for its own scope.
-- When working in `01-` or `02-`, edit those files for the in-progress checkboxes, **and** when you complete a milestone that satisfies a high-level phase bullet at the top of this file (the v0/v1/v2 list in [§ Pitch](#pitch)), come back here to check it off in the same commit. v1 stays unchecked until all v1 features, the README polish in this file, and `01-publishing-suiseki.md` are done. v2 stays unchecked until `02-extending-suiseki.md` is done.
+- The roadmap spans four files: `00-building-suiseki.md` (this file — v0/v1 features, project-wide architecture and out-of-scope), `01-publishing-suiseki.md` (v1 perf pass + release engineering: binaries, GH Releases, Homebrew, install script, npm decision), `02-extending-suiseki.md` (v2 work — `view`, `tree`, subcommand router, v2 README update), and `03-making-suiseki-public.md` (public-facing README polish + launch presentation: screenshots, peer comparison, theme gallery, install docs). Treat each file as the authoritative checklist for its own scope.
+- When working in `01-` or `02-`, edit those files for the in-progress checkboxes, **and** when you complete a milestone that satisfies a high-level phase bullet at the top of this file (the v0/v1/v2 list in [§ Pitch](#pitch)), come back here to check it off in the same commit. v1 stays unchecked until all v1 features and `01-publishing-suiseki.md` are done. The public launch polish in `03-making-suiseki-public.md` rides on top of v1 and depends on `01` shipping installable binaries first. v2 stays unchecked until `02-extending-suiseki.md` is done.
 
 ## The name
 
@@ -95,9 +95,10 @@ suiseki/                  # local dev dir; GitHub repo is <handle>/suiseki-cli
 ├── LICENSE              # Apache 2.0
 ├── NOTICE               # credits Pierre + Shiki
 ├── plans/
-│   ├── 00-building-suiseki.md   # this file: features, README polish, architecture
-│   ├── 01-publishing-suiseki.md # v1 perf pass + release engineering
-│   └── 02-extending-suiseki.md  # v2 work (view, tree, subcommand router)
+│   ├── 00-building-suiseki.md       # this file: v0/v1 features, architecture
+│   ├── 01-publishing-suiseki.md     # v1 perf pass + release engineering
+│   ├── 02-extending-suiseki.md      # v2 work (view, tree, subcommand router)
+│   └── 03-making-suiseki-public.md  # public-facing README polish + launch
 ├── src/
 │   ├── cli.ts           # entry — v0: linear; v1: arg parsing; v2: subcommand router
 │   ├── config.ts        # TOML loading + resolution order
@@ -249,21 +250,19 @@ In rough order of value:
 
 ### README polish
 
-Required content for the published README, in order:
+Core README content shipped during the build. These are done and live in `README.md` today:
 
 - [x] **Title + tagline** — "suiseki — a terminal renderer for diffs and code"
 - [x] **The naming homage paragraph** from the [§ The name](#the-name) section above. Copy verbatim.
-- [ ] **Screenshot or asciinema cast** of a real diff
 - [x] **30-second pitch** — what it does, who it's for. (Currently lives in the README Status section; expand if needed once binaries ship.)
-- [ ] **Install** — Homebrew, install script, prebuilt binary download. (Blocked on `01-publishing-suiseki.md`.)
 - [x] **Quick start** — basic usage, common flags
 - [x] **Git integration** — the per-command pager (`pager.diff`, `pager.show`) + `interactive.diffFilter` snippet
-- [ ] **Comparison table** — pick a couple of honest peers (e.g. `difftastic`, `diff-so-fancy`) and note what each does better. Skip claiming to be a replacement for any of them.
 - [x] **Config reference** — every key documented, with example `~/.suiseki/config.toml`
-- [ ] **Themes** — small gallery showing a few popular Shiki themes plus the Pierre theme variants applied to the same diff
 - [x] **Credits** — `@pierre/diffs` (Apache 2.0, with a link), Shiki (MIT), the Pierre Computer Company
 
-Release engineering for v1 (binaries, GH Releases, Homebrew, install script) is tracked in [`01-publishing-suiseki.md`](./01-publishing-suiseki.md). Start that plan once these v1 features and the README polish are complete.
+The remaining README work is public-facing launch presentation — install docs, a screenshot, a theme gallery, and an optional peer comparison. It wants the final release binary and shipped themes to exist first, so it moved to [`03-making-suiseki-public.md`](./03-making-suiseki-public.md).
+
+Release engineering for v1 (binaries, GH Releases, Homebrew, install script) is tracked in [`01-publishing-suiseki.md`](./01-publishing-suiseki.md). The v1 features are complete, so that plan can start now.
 
 ---
 

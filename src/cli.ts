@@ -4,7 +4,7 @@ import { parseCliOptions } from "./cli-options"
 import { loadConfig, readSuisekiEnv } from "./config"
 import { runConfigCommand } from "./config-command"
 import { getDefaultConfigPath, runInitCommandWithIO } from "./init-command"
-import { renderDiff } from "./render/diff"
+import { renderDiff, streamDiffBlocks } from "./render/diff"
 import {
   containsMergeConflictMarkers,
   renderMergeConflictFile,
@@ -70,22 +70,63 @@ async function main(): Promise<void> {
     return
   }
 
-  const renderedDiff = containsMergeConflictMarkers(patch)
-    ? await renderMergeConflictFile({ configuration, content: patch })
-    : await renderDiff(patch, configuration)
+  const noColor = parsedOptions.noColor || (Bun.env.NO_COLOR ?? "") !== ""
+  const usePager = !noPager && process.stdout.isTTY === true
+  const isMergeConflict = containsMergeConflictMarkers(patch)
 
-  if (renderedDiff === "") {
+  // The pager and merge-conflict renderer both need the full string up front,
+  // so buffer those. The plain stdout path streams per file: it keeps peak
+  // memory down and shows the first file without waiting for the whole render.
+  if (usePager || isMergeConflict) {
+    const renderedDiff = isMergeConflict
+      ? await renderMergeConflictFile({ configuration, content: patch })
+      : await renderDiff(patch, configuration)
+    if (renderedDiff === "") {
+      return
+    }
+    const output = `${noColor ? stripAnsi(renderedDiff) : renderedDiff}\n`
+    if (usePager) {
+      await writeWithPager(output)
+    } else {
+      await writeToStdout(output)
+    }
     return
   }
 
-  const noColor = parsedOptions.noColor || (Bun.env.NO_COLOR ?? "") !== ""
-  const output = `${noColor ? stripAnsi(renderedDiff) : renderedDiff}\n`
-
-  if (!noPager && process.stdout.isTTY === true) {
-    await writeWithPager(output)
-  } else {
-    process.stdout.write(output)
+  let wroteAnyBlock = false
+  for await (const block of streamDiffBlocks(patch, configuration)) {
+    const renderedBlock = noColor ? stripAnsi(block) : block
+    const pipeOpen = await writeToStdout(
+      wroteAnyBlock ? `\n${renderedBlock}` : renderedBlock,
+    )
+    // The consumer closed the pipe (e.g. `suiseki | head`). Stop rendering
+    // blocks nobody will read rather than churning through a large diff.
+    if (!pipeOpen) {
+      return
+    }
+    wroteAnyBlock = true
   }
+  if (wroteAnyBlock) {
+    await writeToStdout("\n")
+  }
+}
+
+// Resolves true once the chunk is flushed (or queued), giving us backpressure
+// between file blocks so a slow consumer can't make us buffer the whole diff.
+// Resolves false when the consumer closed the pipe (EPIPE) — a clean stop for a
+// Unix filter like `suiseki | head`, not an error.
+function writeToStdout(chunk: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    process.stdout.write(chunk, (error) => {
+      if (error == null) {
+        resolve(true)
+      } else if ((error as NodeJS.ErrnoException).code === "EPIPE") {
+        resolve(false)
+      } else {
+        reject(error)
+      }
+    })
+  })
 }
 
 async function interactiveOverwritePrompt(
@@ -139,6 +180,7 @@ function getHelpText(): string {
     "  --word-diff <word-alt|word|char|none>",
     "  --max-line-diff-length <number>",
     "  --max-line-length <number>",
+    "  --max-file-lines <number>",
     "  --no-pager",
     "  --no-color   (also honors NO_COLOR env var)",
     "",
