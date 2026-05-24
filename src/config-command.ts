@@ -8,6 +8,7 @@ export function generateAnnotatedConfig(): string {
     "#   .suiseki.toml                            (per-repo, searched up from cwd)",
     "#",
     "# CLI flags and SUISEKI_* env vars override all file values.",
+    "# All options below are also available as CLI flags; run `suiseki --help` for the full list.",
     "# Run `suiseki themes` for the full list of available themes.",
     "",
     "[pierre]",
