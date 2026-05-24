@@ -132,11 +132,17 @@ max-line-diff-length = 1000  # SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH
 [shiki]
 theme = "pierre-dark"        # SUISEKI_SHIKI_THEME (any bundled Shiki theme or Pierre theme)
 max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
+max-file-lines = 10000       # SUISEKI_SHIKI_MAX_FILE_LINES
 ```
 
 Every config key can be overridden with a matching CLI flag, such as
 `--view split`, `--word-diff none`, `--no-line-numbers`, or
 `--max-line-length 5000`. Run `suiseki --help` for the full list.
+
+`max-file-lines` is a performance guard: when a single file's diff has more
+lines than this, that file renders as plaintext (no syntax highlighting) while
+keeping diff backgrounds and gutters. A dim note in the file header marks any
+file that falls back. See [Performance](#performance).
 
 ### Themes
 
@@ -150,6 +156,19 @@ Run `suiseki themes` to list all available themes. Built-in Pierre themes:
 Any [Shiki bundled theme](https://shiki.style/themes) is also accepted (e.g. `github-dark`, `nord`, `dracula`).
 
 Custom themes can be placed as `.json` VSCode-compatible theme files in `~/.suiseki/themes/`. The filename without `.json` becomes the theme name.
+
+## Performance
+
+`suiseki` renders and emits one file at a time, so output starts streaming to
+stdout immediately and peak memory stays bounded by the largest file rather than
+the whole diff. Typical files highlight in well under a second.
+
+Render time is dominated by syntax tokenization, so a single very large file
+would otherwise be slow. `shiki.max-file-lines` (default `10000`) guards against
+that: a file whose diff exceeds that many lines renders as plaintext — keeping
+diff backgrounds, gutters, and a dim note in its header — rather than paying for
+grammar highlighting on a file you are usually scrolling past anyway (lockfiles,
+generated bundles, snapshots). Adjust it in config or with `--max-file-lines`.
 
 ## Development
 
