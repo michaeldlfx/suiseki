@@ -26,7 +26,7 @@ case "$SHELL_NAME" in
     ;;
 esac
 
-if printf '%s' "$PATH" | tr ':' '\n' | grep -qF "$BIN_DIR"; then
+if printf '%s' "$PATH" | tr ':' '\n' | grep -qxF "$BIN_DIR"; then
   echo "suiseki already on PATH ($BIN_DIR)"
   exit 0
 fi
