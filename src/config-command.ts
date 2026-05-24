@@ -79,6 +79,13 @@ export function generateAnnotatedConfig(): string {
     "# values: positive integer",
     "# env:    SUISEKI_SHIKI_MAX_LINE_LENGTH",
     `max-line-length = ${tomlValue(shikiDefaults["max-line-length"])}`,
+    "",
+    "# Render a file as plaintext (no syntax highlighting) when its diff has more",
+    "# lines than this. Diff backgrounds and gutters are kept. Performance guard",
+    "# for very large files; a dim note marks any file that falls back.",
+    "# values: positive integer",
+    "# env:    SUISEKI_SHIKI_MAX_FILE_LINES",
+    `max-file-lines = ${tomlValue(shikiDefaults["max-file-lines"])}`,
   ].join("\n")
 }
 

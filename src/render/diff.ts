@@ -204,37 +204,48 @@ export async function prepareDiffRenderContext(
   }
 }
 
+// Yields one rendered block per file (plus any patch-level metadata block) as
+// it finishes, so a consumer can write to stdout incrementally instead of
+// buffering the whole diff. Concatenating every block with "\n" reproduces the
+// exact output of renderDiff.
+export async function* streamDiffBlocks(
+  patch: string,
+  configuration: SuisekiConfig,
+): AsyncGenerator<string> {
+  // parsePatchFiles(source, fileFilter, parsePatchMetadata)
+  const patches = parsePatchFiles(stripAnsi(patch), undefined, true)
+  const context = await prepareDiffRenderContext(configuration)
+  let fileIndex = 0
+
+  for (const parsedPatch of patches) {
+    const metadataLines = renderPatchMetadata(
+      parsedPatch.patchMetadata,
+      context.palette,
+    )
+    if (metadataLines.length > 0) {
+      yield metadataLines.join("\n")
+    }
+
+    for (const file of parsedPatch.files) {
+      const fileBlock = await renderFileDiff({ configuration, context, file })
+      const blockText = fileBlock.join("\n")
+      // The blank line between files is embedded in the block so that joining
+      // blocks with "\n" yields the separator without special-casing the consumer.
+      yield fileIndex > 0 ? `\n${blockText}` : blockText
+      fileIndex++
+    }
+  }
+}
+
 export async function renderDiff(
   patch: string,
   configuration: SuisekiConfig,
 ): Promise<string> {
-  // parsePatchFiles(source, fileFilter, parsePatchMetadata)
-  const patches = parsePatchFiles(stripAnsi(patch), undefined, true)
-  const { highlighter, palette, terminalWidth, themeName } =
-    await prepareDiffRenderContext(configuration)
-  const outputLines: string[] = []
-
-  let fileIndex = 0
-
-  for (const parsedPatch of patches) {
-    outputLines.push(...renderPatchMetadata(parsedPatch.patchMetadata, palette))
-
-    for (const file of parsedPatch.files) {
-      if (fileIndex > 0) {
-        outputLines.push("")
-      }
-
-      const fileBlock = await renderFileDiff({
-        configuration,
-        context: { highlighter, palette, terminalWidth, themeName },
-        file,
-      })
-      outputLines.push(...fileBlock)
-      fileIndex++
-    }
+  const blocks: string[] = []
+  for await (const block of streamDiffBlocks(patch, configuration)) {
+    blocks.push(block)
   }
-
-  return outputLines.join("\n")
+  return blocks.join("\n")
 }
 
 type RenderFileDiffParams = {
@@ -249,7 +260,15 @@ export async function renderFileDiff({
   file,
 }: RenderFileDiffParams): Promise<string[]> {
   const { highlighter, palette, terminalWidth, themeName } = context
-  const language = await resolveLanguageForFile(highlighter, file.name)
+  const maxFileLines = configuration.shiki["max-file-lines"]
+  const fileLineCount = file.additionLines.length + file.deletionLines.length
+  const exceedsFileLineLimit = fileLineCount > maxFileLines
+  // Grammar tokenization is the dominant cost on large files; fall back to
+  // plaintext (no grammar) above the configured line limit. Diff backgrounds
+  // and gutters are unaffected.
+  const language = exceedsFileLineLimit
+    ? "plaintext"
+    : await resolveLanguageForFile(highlighter, file.name)
   const lineNumberWidth = getLineNumberWidth(file)
   const emittedHunkIndexes = new Set<number>()
   const inlineHighlightRanges = resolveInlineHighlightRanges({
@@ -348,6 +367,9 @@ export async function renderFileDiff({
         file,
         additionCount,
         deletionCount,
+        highlightingSkippedLimit: exceedsFileLineLimit
+          ? maxFileLines
+          : undefined,
         palette,
         terminalWidth,
       }),
@@ -1072,6 +1094,7 @@ type EmitFileHeaderParams = {
   file: FileDiffMetadata
   additionCount: number
   deletionCount: number
+  highlightingSkippedLimit?: number
   palette: ThemePalette
   terminalWidth: number
 }
@@ -1080,13 +1103,22 @@ function emitFileHeader({
   file,
   additionCount,
   deletionCount,
+  highlightingSkippedLimit,
   palette,
   terminalWidth,
 }: EmitFileHeaderParams): string {
   const statusIcon = getFileStatusIcon(file.type)
   const summaryText = `-${deletionCount} +${additionCount} `
+  const skipNote =
+    highlightingSkippedLimit != null
+      ? `highlighting skipped (>${highlightingSkippedLimit} lines)`
+      : ""
+  const skipNoteVisibleLength = skipNote === "" ? 0 : skipNote.length + 2
   const headerPrefixVisibleLength =
-    statusIcon.length + 1 + getFileNameVisibleLength(file)
+    statusIcon.length +
+    1 +
+    getFileNameVisibleLength(file) +
+    skipNoteVisibleLength
   const paddingLength = Math.max(
     terminalWidth - headerPrefixVisibleLength - summaryText.length,
     2,
@@ -1097,6 +1129,10 @@ function emitFileHeader({
     foregroundColor: getFileStatusColor(file.type, palette),
   })
   const fileNameRendered = renderFormattedFileName(file, palette)
+  const skipNoteRendered =
+    skipNote === ""
+      ? ""
+      : `  ${emitStyledText({ text: skipNote, foregroundColor: palette.dimmed })}`
   const padding = emitStyledText({
     text: " ".repeat(paddingLength),
   })
@@ -1109,7 +1145,7 @@ function emitFileHeader({
     foregroundColor: palette.addition,
   })
 
-  return `${statusIconRendered} ${fileNameRendered}${padding}${deletionSummary} ${additionSummary}`
+  return `${statusIconRendered} ${fileNameRendered}${skipNoteRendered}${padding}${deletionSummary} ${additionSummary}`
 }
 
 function emitHunkHeader(hunk: Hunk, palette: ThemePalette): string {
