@@ -1,6 +1,9 @@
+import { createInterface } from "node:readline"
 import { stripAnsi } from "./ansi"
 import { parseCliOptions } from "./cli-options"
 import { loadConfig, readSuisekiEnv } from "./config"
+import { runConfigCommand } from "./config-command"
+import { getInitPathCandidates, runInitCommandWithIO } from "./init-command"
 import { renderDiff } from "./render/diff"
 import {
   containsMergeConflictMarkers,
@@ -22,6 +25,16 @@ class CliError extends Error {
 async function main(): Promise<void> {
   if (process.argv[2] === "themes") {
     await runThemesCommand()
+    return
+  }
+
+  if (process.argv[2] === "config") {
+    await runConfigCommand()
+    return
+  }
+
+  if (process.argv[2] === "init") {
+    await runInitCommandWithIO(buildInteractiveInitIO())
     return
   }
 
@@ -68,6 +81,50 @@ async function main(): Promise<void> {
   }
 }
 
+function buildInteractiveInitIO() {
+  return {
+    async promptPathChoice(): Promise<string> {
+      const [xdgPath, legacyPath] = getInitPathCandidates()
+      process.stdout.write(
+        [
+          "Where should suiseki write the config file?",
+          "",
+          `  1) ${xdgPath}  (XDG, higher priority)`,
+          `  2) ${legacyPath}`,
+          "",
+        ].join("\n"),
+      )
+      const answer = await promptLine("Choice [1]: ")
+      const trimmed = answer.trim()
+      if (trimmed === "" || trimmed === "1") return xdgPath
+      if (trimmed === "2") return legacyPath
+      const retry = await promptLine(
+        `Invalid choice "${trimmed}". Choose 1 or 2 [1]: `,
+      )
+      const retrimmed = retry.trim()
+      if (retrimmed === "" || retrimmed === "1") return xdgPath
+      if (retrimmed === "2") return legacyPath
+      throw new Error(`Invalid choice: ${retry.trim()}`)
+    },
+    async promptOverwrite(targetPath: string): Promise<boolean> {
+      const answer = await promptLine(
+        `Config file already exists at ${targetPath}. Overwrite? [y/N]: `,
+      )
+      return answer.trim().toLowerCase() === "y"
+    },
+  }
+}
+
+async function promptLine(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close()
+      resolve(answer)
+    })
+  })
+}
+
 function getHelpText(): string {
   return [
     "suiseki - terminal diff renderer",
@@ -76,6 +133,8 @@ function getHelpText(): string {
     "  git diff | suiseki",
     "  suiseki [options] [git-diff-args...]",
     "  suiseki themes              List available themes",
+    "  suiseki config              Print full config reference as annotated TOML",
+    "  suiseki init                Create config file interactively",
     "",
     "Examples:",
     "  suiseki --staged",
@@ -100,8 +159,8 @@ function getHelpText(): string {
     "  --no-color   (also honors NO_COLOR env var)",
     "",
     "More:",
-    "  Config: $SUISEKI_CONFIG_DIR/config.toml, $XDG_CONFIG_HOME/suiseki/config.toml, ~/.suiseki/config.toml, or .suiseki.toml (per-repo). Env vars: SUISEKI_*.",
-    "  Docs:   https://github.com/michaeldlfx/suiseki#readme",
+    "  Run 'suiseki config' for the full config reference.",
+    "  Docs: https://github.com/michaeldlfx/suiseki#readme",
   ].join("\n")
 }
 
