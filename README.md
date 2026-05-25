@@ -4,6 +4,8 @@
 
 ![suiseki rendering a git diff in unified view, syntax-highlighted with the pierre-dark theme](assets/diff-unified.png)
 
+![the same diff rendered in split view](assets/diff-split.png)
+
 
 **Pierre** is French for *stone*. This tool builds on [`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs) for diff parsing and [Shiki](https://shiki.style) for syntax highlighting, and models its file tree on [`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees); the Pierre packages are the work of [The Pierre Computer Company](https://diffs.com).
 
