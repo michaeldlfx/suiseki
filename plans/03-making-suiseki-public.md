@@ -26,7 +26,7 @@ Same conventions as [`00-building-suiseki.md`](./00-building-suiseki.md):
 In rough order of value:
 
 - [ ] **Install** — Homebrew, install script, prebuilt binary download. Unblocked once `01` ships artifacts. This is the highest-value item: a stranger can't adopt the tool without it.
-- [ ] **Screenshot or asciinema cast** of a real diff. Show unified and split views with a popular theme. Prefer a static image (or both) so the README renders on GitHub without playback.
+- [ ] **Screenshots or asciinema casts** for the README's `TODO(screenshot)` placeholders. Cover both the diff renderer (unified and split with a popular theme) and the file/tree viewer (`sat <file>` with the `--with-tree` sidebar, and `sat <dir>` showing the git-status tree). Prefer static images (or both) so the README renders on GitHub without playback.
 - [ ] **Themes gallery** — small gallery showing a few popular Shiki themes plus the Pierre theme variants applied to the same diff. Reuse the screenshot tooling.
 - [ ] **Comparison table** (optional) — only worth doing if it stays honest: pick a couple of real peers (`difftastic`, `diff-so-fancy`) and say plainly what each does better. If it drifts toward marketing, cut it. Never a "replacement for X" claim.
 

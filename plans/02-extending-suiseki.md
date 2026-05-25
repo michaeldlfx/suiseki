@@ -110,7 +110,8 @@ Once the features land, the README needs a pass for the broader identity (suisek
 - [x] **`view` / `sat` examples** — file, directory, stdin, and `--with-tree` recipes.
 - [x] **`tree` examples** — directory usage with the git-status column, `--all`, and `--no-icons`.
 - [x] **Comparison table** — cut. suiseki describes its own capabilities directly rather than comparing to peers, so the README has no comparison table.
-- [ ] **Screenshot/cast updates** — `TODO(screenshot)` placeholders are wired into the README; real captures land with the public launch (`03-making-suiseki-public.md`).
+
+Screenshots and casts are launch presentation, not part of this plan; they are tracked in [`03-making-suiseki-public.md`](./03-making-suiseki-public.md). `TODO(screenshot)` placeholders are already wired into the README so the captures can be dropped in there.
 
 ## v2 sanity checks
 
