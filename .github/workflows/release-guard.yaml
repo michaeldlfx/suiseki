@@ -5,9 +5,13 @@ name: release guard
 #   2. package.json version is NOT hand-edited — the release pipeline owns the bump,
 #      and a manual edit would make the automatic increment jump unpredictably
 # Re-runs when labels change so the check goes green once a label is fixed.
+#
+# No `opened`: that event's payload can miss labels applied at creation time
+# (e.g. `gh pr create --label`), which would fail the label check spuriously.
+# `labeled` and `synchronize` always carry the current labels.
 on:
   pull_request:
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+    types: [reopened, synchronize, labeled, unlabeled]
     branches: [main]
 
 permissions:
