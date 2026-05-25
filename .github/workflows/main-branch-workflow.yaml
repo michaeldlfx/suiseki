@@ -19,9 +19,10 @@ concurrency:
   group: main-branch
   cancel-in-progress: false
 
+# Least privilege: read by default (verify just checks out); write is elevated
+# per job only where it is needed (tag pushes, publish creates the release).
 permissions:
-  contents: write
-  pull-requests: read
+  contents: read
 
 jobs:
   verify:
@@ -52,6 +53,9 @@ jobs:
     name: plan release
     needs: verify
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       level: ${{ steps.level.outputs.level }}
     steps:
@@ -85,6 +89,8 @@ jobs:
     needs: plan
     if: needs.plan.outputs.level != ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       tag: ${{ steps.bump.outputs.tag }}
     steps:
@@ -119,6 +125,8 @@ jobs:
     name: publish
     needs: tag
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       TAG: ${{ needs.tag.outputs.tag }}
     steps:
