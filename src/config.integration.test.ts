@@ -22,6 +22,7 @@ const ENVIRONMENT_KEYS = [
   "SUISEKI_SHIKI_MAX_LINE_LENGTH",
   "SUISEKI_SHIKI_THEME",
   "SUISEKI_VIEW_WITH_TREE",
+  "SUISEKI_VIEW_WITH_TREE_SIDE",
   "XDG_CONFIG_HOME",
 ]
 
@@ -95,6 +96,7 @@ describe("config.ts", () => {
         },
         view: {
           "with-tree": false,
+          "with-tree-side": "left",
         },
         customThemes: {},
       })
