@@ -138,7 +138,8 @@ Beyond diffs, `suiseki view` syntax-highlights a file, prints a directory tree,
 or reads from stdin. The same command is also available as **`sat`**, a short
 name that mirrors `cat` and `bat`: the `s` is for `suiseki`, and `at` echoes
 `cat`/`bat`. It is installed as a symlink to the `suiseki` binary, so
-`sat <file>` is exactly `suiseki view <file>`.
+`sat <path>` is exactly `suiseki view <path>`, whether `<path>` is a file (show
+its contents) or a directory (print its tree).
 
 <!-- TODO(screenshot): `sat src/render/diff.ts` (highlighting + line numbers), and `sat .` (tree with the git-status column). -->
 
@@ -150,6 +151,7 @@ suiseki view src/render/diff.ts
 # print a directory tree with git status
 sat .
 sat src/
+suiseki view src/
 
 # read a file from stdin
 cat src/cli.ts | sat
@@ -172,7 +174,8 @@ parent directories. The tree and viewer flags:
 - `--with-tree` / `-t`: when viewing a file, show it beside its directory tree
   (falls back to the plain view below 100 columns, or for stdin). Set
   `[view].with-tree = true` to make this the default, and override per run with
-  `--with-tree=false`.
+  `--with-tree=false`. The tree sits on the left by default; set
+  `[view].with-tree-side = "right"` to flip it.
 
 File viewing reuses the diff renderer's machinery: themes, line numbers, the
 large-file plaintext fallback, `--no-color` / `NO_COLOR`, and the pager. Binary
@@ -227,6 +230,7 @@ max-file-lines = 10000       # SUISEKI_SHIKI_MAX_FILE_LINES
 
 [view]
 with-tree = false            # SUISEKI_VIEW_WITH_TREE (sat/view: show the directory tree beside the file)
+with-tree-side = "left"      # SUISEKI_VIEW_WITH_TREE_SIDE (which side the tree sits on: left | right)
 ```
 
 Every config key can be overridden with a matching CLI flag, such as
