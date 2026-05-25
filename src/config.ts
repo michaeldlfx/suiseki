@@ -23,6 +23,7 @@ const vSuisekiEnv = type({
   "SUISEKI_SHIKI_MAX_LINE_LENGTH?": vPositiveIntegerString,
   "SUISEKI_SHIKI_MAX_FILE_LINES?": vPositiveIntegerString,
   "SUISEKI_VIEW_WITH_TREE?": vStringBoolean,
+  "SUISEKI_VIEW_WITH_TREE_SIDE?": '"left" | "right"',
   "SUISEKI_NO_PAGER?": vStringBoolean,
 })
 
@@ -63,9 +64,11 @@ const SHIKI_CONFIG_FIELDS = {
 } as const
 
 // suiseki's own (non-Pierre, non-Shiki) view options. `with-tree` defaults the
-// `view`/`sat` file viewer to the side-by-side tree layout.
+// `view`/`sat` file viewer to the side-by-side tree layout; `with-tree-side`
+// chooses which side the tree sits on.
 const VIEW_CONFIG_FIELDS = {
   "with-tree": "boolean",
+  "with-tree-side": '"left" | "right"',
 } as const
 
 const CLI_PIERRE_CONFIG_FIELDS = {
@@ -142,6 +145,7 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
   },
   view: {
     "with-tree": false,
+    "with-tree-side": "left",
   },
   customThemes: {},
 }
@@ -356,6 +360,9 @@ function environmentOverridesFrom(env: SuisekiEnv): SuisekiConfigOverrides {
   const view: Partial<Record<ViewKey, unknown>> = {}
   if (env.SUISEKI_VIEW_WITH_TREE !== undefined) {
     view["with-tree"] = env.SUISEKI_VIEW_WITH_TREE
+  }
+  if (env.SUISEKI_VIEW_WITH_TREE_SIDE !== undefined) {
+    view["with-tree-side"] = env.SUISEKI_VIEW_WITH_TREE_SIDE
   }
 
   const overrides: DraftSuisekiConfigOverrides = {}

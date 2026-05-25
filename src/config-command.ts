@@ -92,12 +92,17 @@ export function generateAnnotatedConfig(): string {
     "[view]",
     "",
     "# Default `suiseki view <file>` / `sat <file>` to the side-by-side layout:",
-    "# file contents on the right, the surrounding directory tree on the left",
-    "# with the viewed file highlighted. `--with-tree` / `--no-with-tree` override",
-    "# per invocation. Falls back to file-only on terminals narrower than 100 cols.",
+    "# the file's contents beside the surrounding directory tree, with the viewed",
+    "# file highlighted. `--with-tree` / `--with-tree=false` override per invocation.",
+    "# Falls back to file-only on terminals narrower than 100 cols.",
     "# values: true | false",
     "# env:    SUISEKI_VIEW_WITH_TREE",
     `with-tree = ${tomlValue(viewDefaults["with-tree"])}`,
+    "",
+    "# Which side the directory tree sits on in the `--with-tree` layout.",
+    "# values: left | right",
+    "# env:    SUISEKI_VIEW_WITH_TREE_SIDE",
+    `with-tree-side = ${tomlValue(viewDefaults["with-tree-side"])}`,
   ].join("\n")
 }
 

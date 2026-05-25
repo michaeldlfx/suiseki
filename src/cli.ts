@@ -296,6 +296,7 @@ async function emitFileWithTree({
     paths,
     rootLabel,
     showIcons: icons,
+    side: configuration.view["with-tree-side"],
   })
 
   await emitLines({ lines, noColor, noPager })

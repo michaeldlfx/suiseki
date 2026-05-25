@@ -22,12 +22,13 @@ type RenderWithTreeParams = {
   paths: string[]
   rootLabel: string
   showIcons: boolean
+  side: "left" | "right"
 }
 
-// Side-by-side layout: the surrounding directory tree on the left (current file
-// highlighted), the file's contents on the right. The tree column is fixed
-// width; the file column takes the rest and is truncated so long lines never
-// wrap into the tree column.
+// Side-by-side layout: the surrounding directory tree on one side (current file
+// highlighted), the file's contents on the other. `side` chooses which side the
+// tree sits on. The tree column is fixed width; the file column takes the rest
+// and is truncated so long lines never wrap into the tree column.
 export async function renderWithTreeLines({
   configuration,
   content,
@@ -38,6 +39,7 @@ export async function renderWithTreeLines({
   paths,
   rootLabel,
   showIcons,
+  side,
 }: RenderWithTreeParams): Promise<string[]> {
   const context = await prepareRenderContext(configuration)
   const { contentLines } = await buildFileView({
@@ -71,16 +73,21 @@ export async function renderWithTreeLines({
   const rowCount = Math.max(treeLines.length, contentLines.length)
   const rows: string[] = []
 
+  // Only the left cell is padded to its column width; the right cell needs no
+  // trailing fill. So the cell that lands on the left is padded, the other is not.
   for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-    const treeCell = fitToWidth(
-      treeLines[rowIndex] ?? "",
-      treeColumnWidth,
-      true,
-    )
-    const fileLine = contentLines[rowIndex]
-    const fileCell =
-      fileLine == null ? "" : fitToWidth(fileLine, fileColumnWidth, false)
-    rows.push(`${treeCell}${separator}${fileCell}`)
+    const treeLine = treeLines[rowIndex] ?? ""
+    const fileLine = contentLines[rowIndex] ?? ""
+
+    if (side === "left") {
+      const treeCell = fitToWidth(treeLine, treeColumnWidth, true)
+      const fileCell = fitToWidth(fileLine, fileColumnWidth, false)
+      rows.push(`${treeCell}${separator}${fileCell}`)
+    } else {
+      const fileCell = fitToWidth(fileLine, fileColumnWidth, true)
+      const treeCell = fitToWidth(treeLine, treeColumnWidth, false)
+      rows.push(`${fileCell}${separator}${treeCell}`)
+    }
   }
 
   return rows
