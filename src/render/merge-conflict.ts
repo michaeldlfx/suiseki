@@ -1,6 +1,7 @@
 import type { SuisekiConfig } from "../config"
 import { parseMergeConflictDiffFromFile } from "../vendor/pierre/parse-merge-conflict-diff-from-file"
-import { prepareDiffRenderContext, renderFileDiff } from "./diff"
+import { renderFileDiff } from "./diff"
+import { prepareRenderContext } from "./highlight"
 
 const MERGE_CONFLICT_START_MARKER = /^<{7,}(?:\s.*)?$/m
 
@@ -24,7 +25,7 @@ export async function renderMergeConflictFile({
     contents: content,
   })
 
-  const context = await prepareDiffRenderContext(configuration)
+  const context = await prepareRenderContext(configuration)
   const fileBlock = await renderFileDiff({
     configuration,
     context,
