@@ -170,7 +170,8 @@ outside one. Directories are marked with a `▾` glyph, and a git-status column
 (added, modified, deleted, renamed, untracked) sits on the left, rolled up to
 parent directories. The tree and viewer flags:
 
-- `--all` / `-a`: include dotfiles and gitignored entries.
+- `--all` / `-a`: include dotfiles and gitignored entries. **On by default**
+  (`[view].all`); pass `--all=false`, or set `[view].all = false`, to hide them.
 - `--no-icons`: hide the `▾` directory glyphs.
 - `--no-git-status`: hide the git-status column.
 - `--with-tree` / `-t`: show a file beside its directory tree. This is **on by
@@ -233,6 +234,7 @@ max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
 max-file-lines = 10000       # SUISEKI_SHIKI_MAX_FILE_LINES
 
 [view]
+all = true                   # SUISEKI_VIEW_ALL (sat/view: show dotfiles and gitignored entries)
 with-tree = true             # SUISEKI_VIEW_WITH_TREE (sat/view: show the directory tree beside the file)
 with-tree-side = "left"      # SUISEKI_VIEW_WITH_TREE_SIDE (which side the tree sits on: left | right)
 ```
