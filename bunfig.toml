@@ -1,5 +1,5 @@
 [install]
-exact = false
+exact = true
 [test]
 root = "./src"
 
