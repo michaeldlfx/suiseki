@@ -120,6 +120,7 @@ every paged Git command, such as `git log`:
 ```bash
 git config --global pager.diff 'suiseki'
 git config --global pager.show 'suiseki'
+git config --global interactive.diffFilter 'suiseki --color-only'
 ```
 
 Or open `~/.gitconfig` with your editor and set:
@@ -128,10 +129,19 @@ Or open `~/.gitconfig` with your editor and set:
 [pager]
 	diff = suiseki
 	show = suiseki
+
+[interactive]
+	diffFilter = suiseki --color-only
 ```
 
-With that configured, `git diff` and `git show` render through `suiseki`.
-Plain `git log` keeps Git's normal pager output.
+With that configured, `git diff`, `git show`, and interactive patch selection
+(`git add -p`, `git reset -p`) render through `suiseki`. Plain `git log` keeps
+Git's normal pager output.
+
+The `--color-only` flag is a separate, line-preserving rendering path:
+`interactive.diffFilter` maps your keystrokes onto hunks by counting lines, so
+it colorizes the diff in place rather than reflowing it with gutters, headers,
+and full-width backgrounds the way the pager view does.
 
 ## Viewing files and trees
 
