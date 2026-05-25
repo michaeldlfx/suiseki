@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { stripAnsi } from "../ansi"
 import { DEFAULT_CONFIG, type SuisekiConfig } from "../config"
 import { getTerminalWidth } from "./highlight"
-import { computeTreeLayout, renderWithTreeLines } from "./with-tree"
+import { computeTreeLayout, expandTabs, renderWithTreeLines } from "./with-tree"
 
 function defaultConfig(): SuisekiConfig {
   return {
@@ -32,6 +32,24 @@ function renderRows(
     ...overrides,
   })
 }
+
+describe("expandTabs", () => {
+  test("expands a tab to the next tab stop", () => {
+    // "a" sits in column 1, so the tab fills the 7 cells up to column 8.
+    expect(expandTabs("a\tb", 8)).toEqual(`a${" ".repeat(7)}b`)
+  })
+
+  test("resets tab stops at each newline", () => {
+    // Line 1: "ab" -> tab fills to column 8 (6 cells). Line 2: tab from column 0.
+    expect(expandTabs("ab\tc\n\td", 8)).toEqual(
+      `ab${" ".repeat(6)}c\n${" ".repeat(8)}d`,
+    )
+  })
+
+  test("leaves a string without tabs unchanged", () => {
+    expect(expandTabs("no tabs here", 8)).toEqual("no tabs here")
+  })
+})
 
 describe("computeTreeLayout", () => {
   test("fits the tree to its widest line when it fits within half the width", () => {
