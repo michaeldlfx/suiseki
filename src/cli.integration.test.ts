@@ -172,7 +172,6 @@ describe("view subcommand", () => {
   test("highlights a file with a header naming the language", async () => {
     const { exitCode, stdout } = await runCli([
       "view",
-      "--with-tree=false",
       join(workspace, "greeting.ts"),
     ])
     const plain = stripAnsi(stdout)
@@ -233,10 +232,7 @@ describe("view subcommand", () => {
 
 describe("sat symlink dispatch", () => {
   test("views a file when invoked as `sat <file>`", async () => {
-    const { exitCode, stdout } = await runSat(
-      ["--with-tree=false", "greeting.ts"],
-      {},
-    )
+    const { exitCode, stdout } = await runSat(["greeting.ts"], {})
     const plain = stripAnsi(stdout)
 
     expect(exitCode).toEqual(0)
@@ -261,10 +257,13 @@ describe("sat symlink dispatch", () => {
   })
 })
 
-describe("view --with-tree", () => {
-  // Run from inside the workspace so the sidebar roots there (a non-repo dir).
-  // `data.bin` is a sibling that only appears via the tree, never in the file's
-  // own content, so it cleanly distinguishes sidebar-on from sidebar-off.
+describe("view --with-tree (piped output stays plain)", () => {
+  // These subprocess tests pipe stdout, so it is never a TTY. The sidebar only
+  // renders on an interactive terminal, so a piped view is always a clean,
+  // full-width file view. `data.bin` is a sibling that appears only via the
+  // tree, so its absence confirms no sidebar leaked into the piped output and
+  // truncated the file (the side-by-side layout would corrupt downstream pipes).
+  // The sidebar's own rendering is covered by render/with-tree.test.ts.
   function runViewInWorkspace(
     viewArguments: string[],
     env?: Record<string, string>,
@@ -275,7 +274,7 @@ describe("view --with-tree", () => {
     })
   }
 
-  test("shows the file beside its surrounding directory tree", async () => {
+  test("stays a plain file view when piped, even with --with-tree", async () => {
     const { exitCode, stdout } = await runViewInWorkspace([
       "greeting.ts",
       "--with-tree",
@@ -284,32 +283,13 @@ describe("view --with-tree", () => {
 
     expect(exitCode).toEqual(0)
     expect(plain).toContain("const greeting")
-    expect(plain).toContain("│")
-    expect(plain).toContain("data.bin")
+    expect(plain).not.toContain("data.bin")
   })
 
-  test("shows the sidebar by default", async () => {
+  test("stays a plain file view when piped under the default sidebar config", async () => {
     const { stdout } = await runViewInWorkspace(["greeting.ts"])
 
     expect(stripAnsi(stdout)).toContain("const greeting")
-    expect(stripAnsi(stdout)).toContain("data.bin")
-  })
-
-  test("SUISEKI_VIEW_WITH_TREE=false turns the sidebar off", async () => {
-    const { stdout } = await runViewInWorkspace(["greeting.ts"], {
-      SUISEKI_VIEW_WITH_TREE: "false",
-    })
-
-    expect(stripAnsi(stdout)).toContain("const greeting")
-    expect(stripAnsi(stdout)).not.toContain("data.bin")
-  })
-
-  test("--with-tree=false turns the sidebar off", async () => {
-    const { stdout } = await runViewInWorkspace([
-      "greeting.ts",
-      "--with-tree=false",
-    ])
-
     expect(stripAnsi(stdout)).not.toContain("data.bin")
   })
 })
