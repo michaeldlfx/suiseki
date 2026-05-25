@@ -14,8 +14,6 @@ bun-darwin-arm64:suiseki-darwin-arm64
 bun-darwin-x64:suiseki-darwin-x64
 bun-linux-x64-baseline:suiseki-linux-x64
 bun-linux-arm64:suiseki-linux-arm64
-bun-linux-x64-musl:suiseki-linux-x64-musl
-bun-linux-arm64-musl:suiseki-linux-arm64-musl
 bun-windows-x64:suiseki-windows-x64.exe
 bun-windows-arm64:suiseki-windows-arm64.exe
 "

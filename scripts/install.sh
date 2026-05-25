@@ -58,16 +58,7 @@ detect_asset() {
     *) error "unsupported architecture: $arch" ;;
   esac
 
-  libc_part=""
-  if [ "$os_part" = "linux" ]; then
-    if (ldd --version 2>&1 | grep -qi musl) ||
-      [ -e /lib/ld-musl-x86_64.so.1 ] ||
-      [ -e /lib/ld-musl-aarch64.so.1 ]; then
-      libc_part="-musl"
-    fi
-  fi
-
-  echo "${BIN_NAME}-${os_part}-${arch_part}${libc_part}"
+  echo "${BIN_NAME}-${os_part}-${arch_part}"
 }
 
 asset="$(detect_asset)"

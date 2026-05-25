@@ -7,13 +7,11 @@ export class UpgradeError extends Error {
 type ResolveReleaseAssetNameParams = {
   platform: NodeJS.Platform
   arch: string
-  isMusl: boolean
 }
 
 export function resolveReleaseAssetName({
   platform,
   arch,
-  isMusl,
 }: ResolveReleaseAssetNameParams): string {
   let archPart: string
   if (arch === "arm64") {
@@ -28,7 +26,7 @@ export function resolveReleaseAssetName({
     return `suiseki-darwin-${archPart}`
   }
   if (platform === "linux") {
-    return `suiseki-linux-${archPart}${isMusl ? "-musl" : ""}`
+    return `suiseki-linux-${archPart}`
   }
   if (platform === "win32") {
     return `suiseki-windows-${archPart}.exe`
@@ -80,7 +78,6 @@ export type UpgradeParams = {
   platform: NodeJS.Platform
   arch: string
   currentVersion: string
-  isMusl: boolean
   client: ReleaseClient
 }
 
@@ -88,7 +85,6 @@ export async function upgrade({
   platform,
   arch,
   currentVersion,
-  isMusl,
   client,
 }: UpgradeParams): Promise<string> {
   if (platform === "win32") {
@@ -108,7 +104,7 @@ export async function upgrade({
     return `suiseki ${currentVersion} is already the latest version.`
   }
 
-  const assetName = resolveReleaseAssetName({ platform, arch, isMusl })
+  const assetName = resolveReleaseAssetName({ platform, arch })
 
   const baseUrl = `https://github.com/${GITHUB_REPO}/releases/download/v${latestVersion}`
   const binaryBytes = await client.downloadBytes(`${baseUrl}/${assetName}`)
