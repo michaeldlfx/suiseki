@@ -9,6 +9,7 @@ function tomlValue(value: string | number | boolean): string {
 
 const pierreDefaults = DEFAULT_CONFIG.pierre
 const shikiDefaults = DEFAULT_CONFIG.shiki
+const viewDefaults = DEFAULT_CONFIG.view
 
 export function generateAnnotatedConfig(): string {
   return [
@@ -87,6 +88,34 @@ export function generateAnnotatedConfig(): string {
     "# values: positive integer",
     "# env:    SUISEKI_SHIKI_MAX_FILE_LINES",
     `max-file-lines = ${tomlValue(shikiDefaults["max-file-lines"])}`,
+    "",
+    "[view]",
+    "",
+    "# How gitignored entries (node_modules, dist, coverage) appear in the tree.",
+    "# hidden: omit them; collapsed: show ignored dirs as a single collapsed entry",
+    "# without drilling in; expanded: show them in full. `sat <ignored-dir>` always",
+    "# shows that directory's contents regardless of this setting.",
+    "# values: hidden | collapsed | expanded",
+    "# env:    SUISEKI_VIEW_GITIGNORED",
+    `gitignored = ${tomlValue(viewDefaults.gitignored)}`,
+    "",
+    "# Show dotfiles (entries whose name starts with `.`) in `view`/`sat`.",
+    "# values: true | false",
+    "# env:    SUISEKI_VIEW_HIDDEN",
+    `hidden = ${tomlValue(viewDefaults.hidden)}`,
+    "",
+    "# Default `suiseki view <file>` / `sat <file>` to the side-by-side layout:",
+    "# the file's contents beside the surrounding directory tree, with the viewed",
+    "# file highlighted. `--with-tree` / `--with-tree=false` override per invocation.",
+    "# Falls back to file-only on terminals narrower than 100 cols.",
+    "# values: true | false",
+    "# env:    SUISEKI_VIEW_WITH_TREE",
+    `with-tree = ${tomlValue(viewDefaults["with-tree"])}`,
+    "",
+    "# Which side the directory tree sits on in the `--with-tree` layout.",
+    "# values: left | right",
+    "# env:    SUISEKI_VIEW_WITH_TREE_SIDE",
+    `with-tree-side = ${tomlValue(viewDefaults["with-tree-side"])}`,
   ].join("\n")
 }
 

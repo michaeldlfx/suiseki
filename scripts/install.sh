@@ -7,13 +7,16 @@ set -eu
 #
 # Options (environment variables):
 #   SUISEKI_VERSION       version to install, e.g. 0.1.0 or v0.1.0 (default: latest)
-#   SUISEKI_INSTALL_DIR   install directory (default: /usr/local/bin)
+#   SUISEKI_INSTALL_DIR   install directory (default: ~/.suiseki/bin)
 #
 # A version may also be passed as the first argument: install.sh 0.1.0
 
 REPO="michaeldlfx/suiseki"
 BIN_NAME="suiseki"
-INSTALL_DIR="${SUISEKI_INSTALL_DIR:-/usr/local/bin}"
+# Default to the app's own home (alongside ~/.suiseki/config.toml and themes/):
+# self-contained, user-writable so the install never needs sudo, and removable
+# with `rm -rf ~/.suiseki`. SUISEKI_INSTALL_DIR overrides for a custom location.
+INSTALL_DIR="${SUISEKI_INSTALL_DIR:-$HOME/.suiseki/bin}"
 VERSION="${1:-${SUISEKI_VERSION:-latest}}"
 
 error() {
@@ -49,7 +52,7 @@ detect_asset() {
   case "$os" in
     Darwin) os_part="darwin" ;;
     Linux) os_part="linux" ;;
-    *) error "unsupported OS: $os (download the Windows .exe from the releases page)" ;;
+    *) error "unsupported OS: $os" ;;
   esac
 
   case "$arch" in
@@ -97,19 +100,21 @@ actual="$(sha256_of "$tmp_dir/$asset")"
 chmod +x "$tmp_dir/$asset"
 target="$INSTALL_DIR/$BIN_NAME"
 
-if [ -d "$INSTALL_DIR" ] && [ -w "$INSTALL_DIR" ]; then
-  mv "$tmp_dir/$asset" "$target"
-else
-  echo "Elevating with sudo to write to $INSTALL_DIR..."
-  sudo mkdir -p "$INSTALL_DIR"
-  sudo mv "$tmp_dir/$asset" "$target"
-fi
+mkdir -p "$INSTALL_DIR"
+[ -w "$INSTALL_DIR" ] ||
+  error "install dir $INSTALL_DIR is not writable; set SUISEKI_INSTALL_DIR to a writable directory"
 
-echo "Installed suiseki to $target"
+mv "$tmp_dir/$asset" "$target"
+# `sat` is the same binary under a second name: invoked as `sat` it runs as
+# `suiseki view`. A relative symlink keeps it valid if the dir is relocated.
+ln -sf "$BIN_NAME" "$INSTALL_DIR/sat"
+
+echo "Installed suiseki to $target (sat -> suiseki view)"
 
 # Register $INSTALL_DIR on PATH and create a default config, for parity with
 # `make init`. We reuse the same setup-path.sh rather than duplicate it; it is a
-# no-op when the directory is already on PATH (the usual /usr/local/bin case).
+# no-op when the directory is already on PATH. ~/.suiseki/bin usually is not, so
+# this is what makes `suiseki` and `sat` available in new shells.
 download "https://raw.githubusercontent.com/$REPO/main/scripts/setup-path.sh" "$tmp_dir/setup-path.sh"
 sh "$tmp_dir/setup-path.sh" "$INSTALL_DIR"
 

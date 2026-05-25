@@ -1,8 +1,11 @@
 # suiseki
 
-> A terminal renderer for diffs and code.
+> A terminal renderer for diffs, files, and trees.
 
-**Pierre** is French for *stone*. The library powering this tool — `@pierre/diffs` — is the work of The Pierre Computer Company.
+<!-- TODO(screenshot): hero shot of a real git diff rendered by suiseki, unified and split, with the pierre-dark theme. -->
+
+
+**Pierre** is French for *stone*. This tool builds on [`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs) for diff parsing and [Shiki](https://shiki.style) for syntax highlighting, and models its file tree on [`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees); the Pierre packages are the work of [The Pierre Computer Company](https://diffs.com).
 
 **水石 / suiseki** is the Japanese art of stone appreciation — a contemplative practice, imported from Chinese scholar's-rock tradition and refined in Japan, of viewing naturally-formed stones for their beauty: finding landscapes, figures, and quiet meaning in their shape. The literal reading is *water-stone* — stones polished and revealed by water over time.
 
@@ -20,13 +23,14 @@ curl -fsSL https://raw.githubusercontent.com/michaeldlfx/suiseki/main/scripts/in
 
 This detects your platform, downloads the matching binary from the latest
 [GitHub release](https://github.com/michaeldlfx/suiseki/releases), verifies its
-SHA-256 checksum, installs it to `/usr/local/bin`, registers that directory on
-your `PATH`, and creates a default config at `~/.suiseki/config.toml` (the same
-end state as `make init`). Override the directory with `SUISEKI_INSTALL_DIR`, or
-pin a version with `SUISEKI_VERSION=0.1.0`.
+SHA-256 checksum, installs it to `~/.suiseki/bin` (alongside your config), adds a
+`sat` symlink for the file and tree viewer, registers that directory on your
+`PATH`, and creates a default config at `~/.suiseki/config.toml` (the same end
+state as `make init`). The install directory is user-writable, so no `sudo` is
+needed. Override it with `SUISEKI_INSTALL_DIR`, or pin a version with
+`SUISEKI_VERSION=0.1.0`.
 
-macOS (x64 and arm64) and Linux (x64 and arm64, glibc) are supported. On
-Windows, download `suiseki-windows-x64.exe` from the releases page.
+macOS (x64 and arm64) and Linux (x64 and arm64, glibc) are supported.
 
 ### Install with Homebrew
 
@@ -52,7 +56,7 @@ cd suiseki
 make init
 ```
 
-`make init` installs dependencies, builds the `./bin/suiseki` binary, registers it on your `PATH` (zsh, bash, and fish are supported), and creates a default config at `~/.suiseki/config.toml`.
+`make init` installs dependencies, builds the `./bin/suiseki` binary (with a `sat` symlink for the file and tree viewer), registers it on your `PATH` (zsh, bash, and fish are supported), and creates a default config at `~/.suiseki/config.toml`.
 
 ### Updating
 
@@ -62,7 +66,7 @@ If you installed a prebuilt binary, update in place:
 suiseki upgrade
 ```
 
-It checks GitHub Releases for a newer version, downloads the binary for your
+It checks [GitHub Releases](https://github.com/michaeldlfx/suiseki/releases) for a newer version, downloads the binary for your
 platform, verifies its checksum, and replaces the running executable.
 
 ### Wire up Git
@@ -81,17 +85,19 @@ That's it. Run `git diff` and enjoy.
 
 ## Status
 
-`suiseki` is in v1 development: unified and split diff views work with Shiki syntax highlighting, theme-derived diff backgrounds, configurable file/hunk headers, line numbers, and pager support. It works both as a piped Unix filter and as a Git pager.
+`suiseki` renders three things in the terminal: **diffs** (unified and split views with Shiki syntax highlighting, theme-derived diff backgrounds, configurable file and hunk headers, line numbers, and pager support), **files** (`suiseki view` / `sat`, a syntax-highlighted file viewer), and **directory trees** (`sat <dir>`, with git status). It works both as a piped Unix filter and as a Git pager.
 
-The project is a friendly terminal surface for Pierre's renderer-agnostic packages and Shiki's syntax/theme ecosystem: `@pierre/diffs` first, `@pierre/trees` next, and Shiki throughout. It is a homage and companion, not a fork or replacement.
-
-The implementation plan lives in `plans/00-building-suiseki.md`.
+The project is a friendly terminal surface for Pierre's renderer-agnostic packages and Shiki's syntax/theme ecosystem: [`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs) first, [`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees) next, and [Shiki](https://shiki.style) throughout. It is a homage and companion, not a fork or replacement.
 
 ## Usage
 
 ```bash
 # pipe a diff
 git diff | suiseki
+
+# review a whole branch or a PR
+suiseki origin/main...HEAD              # your branch's changes vs main (fetch origin/main first)
+gh pr diff | suiseki                    # the current branch's PR, via the gh CLI (gh pr diff $PR_NUM for a specific PR)
 
 # pass git diff arguments directly
 suiseki HEAD~1 HEAD
@@ -126,6 +132,62 @@ Or open `~/.gitconfig` with your editor and set:
 
 With that configured, `git diff` and `git show` render through `suiseki`.
 Plain `git log` keeps Git's normal pager output.
+
+## Viewing files and trees
+
+Beyond diffs, `suiseki view` syntax-highlights a file, prints a directory tree,
+or reads from stdin. The same command is also available as **`sat`**, a short
+name that mirrors `cat` and `bat`: the `s` is for `suiseki`, and `at` echoes
+`cat`/`bat`. It is installed as a symlink to the `suiseki` binary, so
+`sat <path>` is exactly `suiseki view <path>`, whether `<path>` is a file (show
+its contents) or a directory (print its tree).
+
+<!-- TODO(screenshot): `sat src/render/diff.ts` (highlighting + line numbers), and `sat .` (tree with the git-status column). -->
+
+```bash
+# view a file: by default (on a wide terminal) it is shown beside its directory
+# tree, highlighted and revealed in the tree
+sat src/render/diff.ts
+suiseki view src/render/diff.ts
+
+# turn the tree off for a plain file view
+sat --with-tree=false src/render/diff.ts
+
+# print a directory tree with git status
+sat .
+sat src/
+suiseki view src/
+
+# read a file from stdin (plain, no tree)
+cat src/cli.ts | sat
+sat - < src/cli.ts
+```
+
+A directory argument prints a tree. Entries come from `git ls-files` inside a
+repository, so `.gitignore` is honored for free, or from a filesystem walk
+outside one. Directories are marked with a `▾` glyph, and a git-status column
+(added, modified, deleted, renamed, untracked) sits on the left, rolled up to
+parent directories. The tree and viewer flags:
+
+- `--gitignored=<hidden|collapsed|expanded>`: how gitignored dirs (`node_modules`,
+  `dist`) appear. Default **collapsed** (`[view].gitignored`): shown as a single
+  `▸ node_modules/` entry, not drilled into. `hidden` omits them, `expanded` shows
+  them in full. `sat <ignored-dir>` always shows that directory's own contents.
+- `--hidden` / `--no-hidden`: show or hide dotfiles. On by default (`[view].hidden`).
+- `--no-icons`: hide the `▾` directory glyphs.
+- `--no-git-status`: hide the git-status column.
+- `--with-tree` / `-t`: show a file beside its directory tree. This is **on by
+  default** (`[view].with-tree`); turn it off for one run with
+  `--with-tree=false`, or set `[view].with-tree = false` to default to a plain
+  file view. The sidebar only renders on an interactive terminal: piped or
+  redirected output, terminals below 100 columns, and stdin input all fall back
+  to a clean full-width file view. The tree sits on the left by default; set
+  `[view].with-tree-side = "right"` to flip it.
+
+File viewing reuses the diff renderer's machinery: themes, line numbers, the
+large-file plaintext fallback, `--no-color` / `NO_COLOR`, and the pager. Binary
+files are detected and skipped rather than dumped as garbage. Run `suiseki view
+--help` for the full option list.
 
 ## Configuration
 
@@ -172,6 +234,12 @@ max-line-diff-length = 1000  # SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH
 theme = "pierre-dark"        # SUISEKI_SHIKI_THEME (any bundled Shiki theme or Pierre theme)
 max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
 max-file-lines = 10000       # SUISEKI_SHIKI_MAX_FILE_LINES
+
+[view]
+gitignored = "collapsed"     # SUISEKI_VIEW_GITIGNORED (hidden | collapsed | expanded)
+hidden = true                # SUISEKI_VIEW_HIDDEN (show dotfiles)
+with-tree = true             # SUISEKI_VIEW_WITH_TREE (sat/view: show the directory tree beside the file)
+with-tree-side = "left"      # SUISEKI_VIEW_WITH_TREE_SIDE (which side the tree sits on: left | right)
 ```
 
 Every config key can be overridden with a matching CLI flag, such as
@@ -240,9 +308,12 @@ Run `make` or `make help` to see all available targets:
 
 ### Releasing
 
-Releases are CI-only. Every PR into `main` carries exactly one semver label,
-`patch`, `minor`, or `major`. The `release guard` check enforces that label and
-forbids hand-editing the `package.json` version (the label drives the bump). On
+Releases are CI-only. Every PR into `main` carries exactly one semver label
+(`patch`, `minor`, or `major`), or the `documentation` label for a docs-only PR
+that does not release. The `release guard` check enforces this and forbids
+hand-editing the `package.json` version (the label drives the bump); a
+`documentation` PR must not also carry a semver label or change anything under
+`src/`. On
 push to `main`, `main-branch-workflow.yaml` runs one pipeline: **build and
 verify** (checks + tests + build) → **plan** (read the merged PR's label) →
 **tag** (bump `package.json`, tag `v<version>`, push) → **publish** (build all
@@ -252,19 +323,17 @@ when the commit's PR carried a semver label, so direct pushes are just verified.
 ## Tech Stack
 
 - **Bun** + TypeScript for runtime, tests, and single-binary compilation.
-- **Shiki** for syntax tokenization and theme compatibility.
-- **`@pierre/diffs`** for diff parsing and iteration.
+- **[Shiki](https://shiki.style)** for syntax tokenization and theme compatibility.
+- **[`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs)** for diff parsing and iteration.
+- **[`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees)** for the directory tree's renderer-agnostic sort and path model (vendored into `src/vendor/pierre/`, not a runtime dependency).
 - **Arktype** for runtime validation of config, CLI options, and external boundaries.
 - **ansis** for ANSI escape code helpers.
 - **smol-toml** for TOML config parsing.
 - **Biome** for formatting and linting.
 
-## Roadmap
-
-- **v0:** local unified-view diff renderer with Shiki highlighting, diff backgrounds, and pager support.
-- **v1:** practical terminal diff renderer with split view, inline word diff, theming, pager integration, config, and prebuilt binaries. *(current)*
-- **v2:** broader terminal code viewer with `view` and `tree` subcommands.
-
 ## Credits
 
 `suiseki` is built around the idea that Pierre's renderer-agnostic parsing and tree logic, paired with Shiki's syntax and theme ecosystem, can produce a better terminal viewing experience for code.
+
+- [`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs) and [`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees) by [The Pierre Computer Company](https://github.com/pierrecomputer/pierre) ([diffs.com](https://diffs.com), [trees.software](https://trees.software)), Apache 2.0.
+- [Shiki](https://shiki.style) ([github.com/shikijs/shiki](https://github.com/shikijs/shiki)), MIT.

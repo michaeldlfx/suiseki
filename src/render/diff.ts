@@ -1,39 +1,29 @@
 import {
   type ChangeTypes,
   type FileDiffMetadata,
-  getFiletypeFromFileName,
   type Hunk,
   parsePatchFiles,
 } from "@pierre/diffs"
 import { type ChangeObject, diffChars, diffWordsWithSpace } from "diff"
-import {
-  type BundledLanguage,
-  type BundledTheme,
-  bundledLanguages,
-  getSingletonHighlighter,
-  type Highlighter,
-  type SpecialLanguage,
-  type ThemedToken,
-  type ThemeRegistrationRaw,
-} from "shiki"
-import {
-  emitPadding,
-  emitStyledText,
-  emitToken,
-  RESET,
-  stripAnsi,
-} from "../ansi"
-import { isBundledThemeName, type SuisekiConfig } from "../config"
-import type { CustomThemes } from "../custom-themes"
+import type { Highlighter } from "shiki"
+import { emitPadding, emitStyledText, RESET, stripAnsi } from "../ansi"
+import type { SuisekiConfig } from "../config"
 import { type ChangeMarker, renderGutter } from "../gutter"
-import { isPierreThemeName, PIERRE_THEMES } from "../pierre-themes"
-import { resolveThemePalette, type ThemePalette } from "../theme-palette"
+import type { ThemePalette } from "../theme-palette"
 import {
   type DiffLineCallbackProps,
   iterateOverDiff,
 } from "../vendor/pierre/iterate-over-diff"
-
-const DEFAULT_TERMINAL_WIDTH = 100
+import {
+  type InlineHighlightRange,
+  prepareRenderContext,
+  type RenderContext,
+  type RenderLanguage,
+  renderTokenizedContent,
+  resolveLanguageForFile,
+  sliceInlineHighlightRanges,
+  stripLineEnding,
+} from "./highlight"
 
 type DiffLineKind = "addition" | "context" | "deletion"
 
@@ -89,11 +79,6 @@ type RenderSplitSideParams = {
   theme: string
 }
 
-type InlineHighlightRange = {
-  end: number
-  start: number
-}
-
 type InlineHighlightRanges = {
   additions: Map<number, InlineHighlightRange[]>
   deletions: Map<number, InlineHighlightRange[]>
@@ -126,82 +111,9 @@ type PushInlineHighlightSpanParams = {
   joinNeutralSpans: boolean
 }
 
-type RenderTokenizedContentParams = {
-  backgroundColor?: string
-  content: string
-  highlighter: Highlighter
-  inlineBackgroundColor?: string
-  inlineHighlightRanges: InlineHighlightRange[]
-  language: RenderLanguage
-  maxLineLength: number
-  theme: string
-}
-
-type RenderTokenWithInlineHighlightsParams = {
-  backgroundColor?: string
-  inlineBackgroundColor?: string
-  inlineHighlightRanges: InlineHighlightRange[]
-  token: ThemedToken
-  tokenStart: number
-}
-
-type SliceInlineHighlightRangesParams = {
-  end: number
-  inlineHighlightRanges: InlineHighlightRange[]
-  start: number
-}
-
 type SplitLayout = {
   leftWidth: number
   rightWidth: number
-}
-
-type RenderLanguage = BundledLanguage | SpecialLanguage
-
-export type DiffRenderContext = {
-  highlighter: Highlighter
-  palette: ThemePalette
-  terminalWidth: number
-  themeName: string
-}
-
-export async function prepareDiffRenderContext(
-  configuration: SuisekiConfig,
-): Promise<DiffRenderContext> {
-  const themeInput = resolveTheme({
-    customThemes: configuration.customThemes,
-    themeName: configuration.shiki.theme,
-  })
-  const themeName =
-    typeof themeInput === "string" ? themeInput : themeInput.name
-  if (themeName == null) {
-    throw new Error(
-      `Theme registration is missing a name: ${configuration.shiki.theme}`,
-    )
-  }
-  // Shiki mutates a registered theme's `colors` map in place during
-  // normalization, mangling display-p3 values. Hand it a clone so the
-  // registry reference stays pristine for palette derivation.
-  const themeForHighlighter =
-    typeof themeInput === "string"
-      ? themeInput
-      : { ...themeInput, colors: { ...themeInput.colors } }
-  const highlighter = await getSingletonHighlighter({
-    themes: [themeForHighlighter],
-    langs: ["plaintext"],
-  })
-  const palette = resolveThemePalette({
-    colorsOverride:
-      typeof themeInput === "string" ? undefined : themeInput.colors,
-    highlighter,
-    theme: themeName,
-  })
-  return {
-    highlighter,
-    palette,
-    terminalWidth: getTerminalWidth(),
-    themeName,
-  }
 }
 
 // Yields one rendered block per file (plus any patch-level metadata block) as
@@ -214,7 +126,7 @@ export async function* streamDiffBlocks(
 ): AsyncGenerator<string> {
   // parsePatchFiles(source, fileFilter, parsePatchMetadata)
   const patches = parsePatchFiles(stripAnsi(patch), undefined, true)
-  const context = await prepareDiffRenderContext(configuration)
+  const context = await prepareRenderContext(configuration)
   let fileIndex = 0
 
   for (const parsedPatch of patches) {
@@ -266,7 +178,7 @@ function countChangedLines(file: FileDiffMetadata): number {
 
 type RenderFileDiffParams = {
   configuration: SuisekiConfig
-  context: DiffRenderContext
+  context: RenderContext
   file: FileDiffMetadata
 }
 
@@ -618,178 +530,6 @@ function wrapContent(content: string, width: number): string[] {
   return contentSegments
 }
 
-function renderTokenizedContent({
-  backgroundColor,
-  content,
-  highlighter,
-  inlineBackgroundColor,
-  inlineHighlightRanges,
-  language,
-  maxLineLength,
-  theme,
-}: RenderTokenizedContentParams): string {
-  let tokenStart = 0
-
-  return tokenizeLine({
-    content,
-    highlighter,
-    language,
-    maxLineLength,
-    theme,
-  })
-    .map((token) => {
-      const renderedToken = renderTokenWithInlineHighlights({
-        backgroundColor,
-        inlineBackgroundColor,
-        inlineHighlightRanges,
-        token,
-        tokenStart,
-      })
-      tokenStart += token.content.length
-      return renderedToken
-    })
-    .join("")
-}
-
-function renderTokenWithInlineHighlights({
-  backgroundColor,
-  inlineBackgroundColor,
-  inlineHighlightRanges,
-  token,
-  tokenStart,
-}: RenderTokenWithInlineHighlightsParams): string {
-  if (inlineBackgroundColor == null || inlineHighlightRanges.length === 0) {
-    return emitToken({ token, backgroundColor })
-  }
-
-  const tokenEnd = tokenStart + token.content.length
-  const tokenSegments: string[] = []
-  let segmentStart = 0
-
-  for (const inlineHighlightRange of inlineHighlightRanges) {
-    const overlapStart = Math.max(tokenStart, inlineHighlightRange.start)
-    const overlapEnd = Math.min(tokenEnd, inlineHighlightRange.end)
-
-    if (overlapEnd <= overlapStart) {
-      continue
-    }
-
-    const localOverlapStart = overlapStart - tokenStart
-    const localOverlapEnd = overlapEnd - tokenStart
-    const localHighlightStart = Math.max(localOverlapStart, segmentStart)
-
-    if (localOverlapEnd <= localHighlightStart) {
-      continue
-    }
-
-    if (localHighlightStart > segmentStart) {
-      tokenSegments.push(
-        emitToken({
-          token: {
-            ...token,
-            content: token.content.slice(segmentStart, localHighlightStart),
-          },
-          backgroundColor,
-        }),
-      )
-    }
-
-    tokenSegments.push(
-      emitToken({
-        token: {
-          ...token,
-          content: token.content.slice(localHighlightStart, localOverlapEnd),
-        },
-        backgroundColor: inlineBackgroundColor,
-      }),
-    )
-
-    segmentStart = localOverlapEnd
-  }
-
-  if (segmentStart < token.content.length) {
-    tokenSegments.push(
-      emitToken({
-        token: {
-          ...token,
-          content: token.content.slice(segmentStart),
-        },
-        backgroundColor,
-      }),
-    )
-  }
-
-  return tokenSegments.join("")
-}
-
-function sliceInlineHighlightRanges({
-  end,
-  inlineHighlightRanges,
-  start,
-}: SliceInlineHighlightRangesParams): InlineHighlightRange[] {
-  const slicedRanges: InlineHighlightRange[] = []
-
-  for (const inlineHighlightRange of inlineHighlightRanges) {
-    const overlapStart = Math.max(start, inlineHighlightRange.start)
-    const overlapEnd = Math.min(end, inlineHighlightRange.end)
-
-    if (overlapEnd > overlapStart) {
-      slicedRanges.push({
-        start: overlapStart - start,
-        end: overlapEnd - start,
-      })
-    }
-  }
-
-  return slicedRanges
-}
-
-type TokenizeLineParams = {
-  content: string
-  highlighter: Highlighter
-  language: RenderLanguage
-  maxLineLength: number
-  theme: string
-}
-
-function tokenizeLine({
-  content,
-  highlighter,
-  language,
-  maxLineLength,
-  theme,
-}: TokenizeLineParams) {
-  if (content === "") {
-    return []
-  }
-
-  const themeOption = theme as BundledTheme
-  if (content.length > maxLineLength) {
-    return (
-      highlighter.codeToTokensBase(content, {
-        lang: "plaintext",
-        theme: themeOption,
-      })[0] ?? []
-    )
-  }
-
-  try {
-    return (
-      highlighter.codeToTokensBase(content, {
-        lang: language,
-        theme: themeOption,
-      })[0] ?? []
-    )
-  } catch {
-    return (
-      highlighter.codeToTokensBase(content, {
-        lang: "plaintext",
-        theme: themeOption,
-      })[0] ?? []
-    )
-  }
-}
-
 function resolveUnifiedDiffLine(
   file: FileDiffMetadata,
   line: DiffLineCallbackProps,
@@ -1035,55 +775,6 @@ function getInlineHighlightRangesFromSpans(
   }
 
   return inlineHighlightRanges
-}
-
-async function resolveLanguageForFile(
-  highlighter: Highlighter,
-  fileName: string,
-): Promise<RenderLanguage> {
-  const detectedLanguage = getFiletypeFromFileName(fileName)
-
-  if (detectedLanguage != null && isBundledLanguageName(detectedLanguage)) {
-    try {
-      await highlighter.loadLanguage(detectedLanguage)
-      return detectedLanguage
-    } catch {
-      return "plaintext"
-    }
-  }
-
-  return "plaintext"
-}
-
-function isBundledLanguageName(
-  languageName: string,
-): languageName is BundledLanguage {
-  return Object.hasOwn(bundledLanguages, languageName)
-}
-
-type ResolveThemeParams = {
-  customThemes: CustomThemes
-  themeName: string
-}
-
-function resolveTheme({
-  customThemes,
-  themeName,
-}: ResolveThemeParams): BundledTheme | ThemeRegistrationRaw {
-  if (isBundledThemeName(themeName)) {
-    return themeName
-  }
-
-  if (isPierreThemeName(themeName)) {
-    return PIERRE_THEMES[themeName]
-  }
-
-  const customTheme = customThemes[themeName]
-  if (customTheme != null) {
-    return customTheme
-  }
-
-  throw new Error(`Unknown theme: ${themeName}`)
 }
 
 function renderPatchMetadata(
@@ -1435,14 +1126,4 @@ function getSplitLayout(terminalWidth: number): SplitLayout {
     leftWidth,
     rightWidth: availableWidth - leftWidth,
   }
-}
-
-function stripLineEnding(line: string): string {
-  return line.replace(/(\r\n|\r|\n)$/, "")
-}
-
-function getTerminalWidth(): number {
-  return process.stdout.columns != null && process.stdout.columns > 0
-    ? process.stdout.columns
-    : DEFAULT_TERMINAL_WIDTH
 }

@@ -19,35 +19,36 @@ install-frozen: ## install dependencies from lockfile
 	bun install --frozen-lockfile
 
 run: ## run project as typescript sources
-	bun dev
+	bun run dev
 
-build: ## build binary (version stamped from package.json)
-	@scripts/build.sh $(BINARY)
+build: ## build binary (version stamped) and link bin/sat -> suiseki
+	bun run build
+	@ln -sf suiseki "$(CURDIR)/bin/sat" && echo "linked sat -> suiseki view ($(CURDIR)/bin/sat)"
 
 release: ## cross-compile all release targets into dist/ with checksums
-	@scripts/build-release.sh
+	bun run build:release
 
 start: ## run build binary
-	./$(BINARY)
+	bun run start
 
-clean: ## remove build artifacts and caches
-	rm -rf bin dist
+clean: ## remove build artifacts, release output, and coverage
+	bun run clean
 
-setup: build ## register suiseki on PATH and create default config (~/.suiseki/config.toml)
+setup: build ## register suiseki + sat on PATH and create default config (~/.suiseki/config.toml)
 	@chmod +x scripts/setup-path.sh && scripts/setup-path.sh "$(CURDIR)/bin"
 	@./$(BINARY) config --init
 
-init: install build setup ## first-time setup: install deps, build binary, configure shell
+init: install setup ## first-time setup: install deps, build binary, configure shell
 
 # code quality
 test: ## run all tests with coverage
-	bun test --pass-with-no-tests
+	bun run test
 
 check: ## type check + lint/format (auto-fix)
-	bun check
+	bun run check
 
 check-ci: ## type check + lint (no auto-fix, for ci)
-	bun check:ci
+	bun run check:ci
 
 format: ## format code with biome
-	bun format
+	bun run format

@@ -9,6 +9,7 @@ type EnvironmentSnapshot = Record<string, string | undefined>
 const ENVIRONMENT_KEYS = [
   "HOME",
   "SUISEKI_CONFIG_DIR",
+  "SUISEKI_NO_PAGER",
   "SUISEKI_PIERRE_CHANGE_INDICATOR",
   "SUISEKI_PIERRE_DIFF_BACKGROUND",
   "SUISEKI_PIERRE_FILE_HEADER",
@@ -17,8 +18,13 @@ const ENVIRONMENT_KEYS = [
   "SUISEKI_PIERRE_MAX_LINE_DIFF_LENGTH",
   "SUISEKI_PIERRE_VIEW",
   "SUISEKI_PIERRE_WORD_DIFF",
+  "SUISEKI_SHIKI_MAX_FILE_LINES",
   "SUISEKI_SHIKI_MAX_LINE_LENGTH",
   "SUISEKI_SHIKI_THEME",
+  "SUISEKI_VIEW_GITIGNORED",
+  "SUISEKI_VIEW_HIDDEN",
+  "SUISEKI_VIEW_WITH_TREE",
+  "SUISEKI_VIEW_WITH_TREE_SIDE",
   "XDG_CONFIG_HOME",
 ]
 
@@ -89,6 +95,12 @@ describe("config.ts", () => {
           theme: "github-light",
           "max-line-length": 5000,
           "max-file-lines": 10000,
+        },
+        view: {
+          gitignored: "collapsed",
+          hidden: true,
+          "with-tree": true,
+          "with-tree-side": "left",
         },
         customThemes: {},
       })

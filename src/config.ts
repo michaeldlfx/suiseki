@@ -10,6 +10,12 @@ import { isPierreThemeName } from "./pierre-themes"
 const vPositiveInteger = type("number.integer > 0")
 const vPositiveIntegerString = type("string.numeric.parse").to(vPositiveInteger)
 
+// Shared enums for the `[view]` options, reused by the config schema, the env
+// schema, and CLI flag validation so the valid values live in one place.
+export const vGitignoredMode = type('"hidden" | "collapsed" | "expanded"')
+export type GitignoredMode = typeof vGitignoredMode.infer
+export const vTreeSide = type('"left" | "right"')
+
 const vSuisekiEnv = type({
   "SUISEKI_PIERRE_VIEW?": '"unified" | "split"',
   "SUISEKI_PIERRE_LINE_NUMBERS?": vStringBoolean,
@@ -22,6 +28,10 @@ const vSuisekiEnv = type({
   "SUISEKI_SHIKI_THEME?": "string",
   "SUISEKI_SHIKI_MAX_LINE_LENGTH?": vPositiveIntegerString,
   "SUISEKI_SHIKI_MAX_FILE_LINES?": vPositiveIntegerString,
+  "SUISEKI_VIEW_GITIGNORED?": vGitignoredMode,
+  "SUISEKI_VIEW_HIDDEN?": vStringBoolean,
+  "SUISEKI_VIEW_WITH_TREE?": vStringBoolean,
+  "SUISEKI_VIEW_WITH_TREE_SIDE?": vTreeSide,
   "SUISEKI_NO_PAGER?": vStringBoolean,
 })
 
@@ -61,6 +71,17 @@ const SHIKI_CONFIG_FIELDS = {
   "max-file-lines": vPositiveInteger,
 } as const
 
+// suiseki's own (non-Pierre, non-Shiki) view options. `gitignored` controls how
+// gitignored entries appear in the tree (hidden, collapsed to a single marker,
+// or fully expanded); `hidden` shows dotfiles; `with-tree` defaults to the
+// side-by-side tree layout; `with-tree-side` chooses which side the tree sits on.
+const VIEW_CONFIG_FIELDS = {
+  gitignored: vGitignoredMode,
+  hidden: "boolean",
+  "with-tree": "boolean",
+  "with-tree-side": vTreeSide,
+} as const
+
 const CLI_PIERRE_CONFIG_FIELDS = {
   ...PIERRE_CONFIG_FIELDS,
   "max-line-diff-length": vPositiveIntegerString,
@@ -74,19 +95,23 @@ const CLI_SHIKI_CONFIG_FIELDS = {
 
 export const vPierreConfig = type(PIERRE_CONFIG_FIELDS)
 export const vShikiConfig = type(SHIKI_CONFIG_FIELDS)
+export const vViewConfig = type(VIEW_CONFIG_FIELDS)
 export const vCliPierreConfig = type(CLI_PIERRE_CONFIG_FIELDS)
 export const vCliShikiConfig = type(CLI_SHIKI_CONFIG_FIELDS)
 
 export const vSuisekiConfig = type({
   pierre: vPierreConfig,
   shiki: vShikiConfig,
+  view: vViewConfig,
 })
 
 export const vPierreConfigOverrides = vPierreConfig.partial()
 export const vShikiConfigOverrides = vShikiConfig.partial()
+export const vViewConfigOverrides = vViewConfig.partial()
 export const vSuisekiConfigOverrides = type({
   "pierre?": vPierreConfigOverrides,
   "shiki?": vShikiConfigOverrides,
+  "view?": vViewConfigOverrides,
 })
 export const vCliConfigOverrides = type({
   "pierre?": vCliPierreConfig.partial(),
@@ -95,10 +120,12 @@ export const vCliConfigOverrides = type({
 
 type PierreKey = keyof typeof PIERRE_CONFIG_FIELDS
 type ShikiKey = keyof typeof SHIKI_CONFIG_FIELDS
+type ViewKey = keyof typeof VIEW_CONFIG_FIELDS
 
-const TOP_LEVEL_KEYS = ["pierre", "shiki"] as const
+const TOP_LEVEL_KEYS = ["pierre", "shiki", "view"] as const
 const PIERRE_KEYS = Object.keys(PIERRE_CONFIG_FIELDS)
 const SHIKI_KEYS = Object.keys(SHIKI_CONFIG_FIELDS)
+const VIEW_KEYS = Object.keys(VIEW_CONFIG_FIELDS)
 
 export type SuisekiConfig = typeof vSuisekiConfig.infer & {
   customThemes: CustomThemes
@@ -108,6 +135,7 @@ export type SuisekiConfigOverrides = typeof vSuisekiConfigOverrides.infer
 type DraftSuisekiConfigOverrides = {
   pierre?: Partial<Record<PierreKey, unknown>>
   shiki?: Partial<Record<ShikiKey, unknown>>
+  view?: Partial<Record<ViewKey, unknown>>
 }
 
 export const DEFAULT_CONFIG: SuisekiConfig = {
@@ -125,6 +153,12 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
     theme: "pierre-dark",
     "max-line-length": 10000,
     "max-file-lines": 10000,
+  },
+  view: {
+    gitignored: "collapsed",
+    hidden: true,
+    "with-tree": true,
+    "with-tree-side": "left",
   },
   customThemes: {},
 }
@@ -172,6 +206,13 @@ export async function loadConfig({
       ...(repositoryConfiguration.shiki ?? {}),
       ...(environmentOverrides.shiki ?? {}),
       ...(overrides.shiki ?? {}),
+    },
+    view: {
+      ...DEFAULT_CONFIG.view,
+      ...(userConfiguration.view ?? {}),
+      ...(repositoryConfiguration.view ?? {}),
+      ...(environmentOverrides.view ?? {}),
+      ...(overrides.view ?? {}),
     },
   }
   const configurationSources = [
@@ -329,9 +370,24 @@ function environmentOverridesFrom(env: SuisekiEnv): SuisekiConfigOverrides {
     shiki["max-file-lines"] = env.SUISEKI_SHIKI_MAX_FILE_LINES
   }
 
+  const view: Partial<Record<ViewKey, unknown>> = {}
+  if (env.SUISEKI_VIEW_GITIGNORED !== undefined) {
+    view.gitignored = env.SUISEKI_VIEW_GITIGNORED
+  }
+  if (env.SUISEKI_VIEW_HIDDEN !== undefined) {
+    view.hidden = env.SUISEKI_VIEW_HIDDEN
+  }
+  if (env.SUISEKI_VIEW_WITH_TREE !== undefined) {
+    view["with-tree"] = env.SUISEKI_VIEW_WITH_TREE
+  }
+  if (env.SUISEKI_VIEW_WITH_TREE_SIDE !== undefined) {
+    view["with-tree-side"] = env.SUISEKI_VIEW_WITH_TREE_SIDE
+  }
+
   const overrides: DraftSuisekiConfigOverrides = {}
   if (Object.keys(pierre).length > 0) overrides.pierre = pierre
   if (Object.keys(shiki).length > 0) overrides.shiki = shiki
+  if (Object.keys(view).length > 0) overrides.view = view
 
   return validateConfigOverrides(overrides, "environment")
 }
@@ -438,6 +494,15 @@ function assertKnownConfigKeys(
       `${configFilePath} [shiki]`,
     )
   }
+
+  if (value.view != null) {
+    assertPlainObject(value.view, `${configFilePath} [view]`)
+    assertKnownKeysInSet(
+      Object.keys(value.view),
+      VIEW_KEYS,
+      `${configFilePath} [view]`,
+    )
+  }
 }
 
 function assertKnownKeysInSet(
@@ -463,6 +528,7 @@ function getErrorMessage(error: unknown): string {
 function hasConfigOverrides(overrides: SuisekiConfigOverrides): boolean {
   return (
     Object.keys(overrides.pierre ?? {}).length > 0 ||
-    Object.keys(overrides.shiki ?? {}).length > 0
+    Object.keys(overrides.shiki ?? {}).length > 0 ||
+    Object.keys(overrides.view ?? {}).length > 0
   )
 }

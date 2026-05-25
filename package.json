@@ -8,7 +8,7 @@
     "build": "scripts/build.sh bin/suiseki",
     "build:release": "scripts/build-release.sh",
     "start": "./bin/suiseki",
-    "clean": "rm -rf bin dist",
+    "clean": "rm -rf bin dist coverage",
     "test": "bun test --pass-with-no-tests",
     "format": "biome format --write .",
     "check": "tsc --noEmit && biome check --write .",

@@ -14,8 +14,6 @@ bun-darwin-arm64:suiseki-darwin-arm64
 bun-darwin-x64:suiseki-darwin-x64
 bun-linux-x64-baseline:suiseki-linux-x64
 bun-linux-arm64:suiseki-linux-arm64
-bun-windows-x64:suiseki-windows-x64.exe
-bun-windows-arm64:suiseki-windows-arm64.exe
 "
 
 VERSION="$(bun pm pkg get version | tr -d '"')"
@@ -28,7 +26,8 @@ for entry in $TARGETS; do
   target="${entry%%:*}"
   outname="${entry##*:}"
   printf '  %-26s -> %s\n' "$target" "$DIST_DIR/$outname"
-  scripts/build.sh "$DIST_DIR/$outname" "$target"
+  # Release builds stamp the bare version; build.sh adds a +dev suffix otherwise.
+  SUISEKI_RELEASE=1 scripts/build.sh "$DIST_DIR/$outname" "$target"
 done
 
 echo "Generating checksums..."
