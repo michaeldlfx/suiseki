@@ -38,7 +38,7 @@ jobs:
         run: make release
 
       - name: upload binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -64,7 +64,7 @@ jobs:
             asset: suiseki-linux-arm64
     steps:
       - name: download binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist
 

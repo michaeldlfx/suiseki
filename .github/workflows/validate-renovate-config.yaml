@@ -18,7 +18,7 @@ jobs:
       options: --user root
     steps:
       - name: checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: validate renovate config
         run: renovate-config-validator renovate.json

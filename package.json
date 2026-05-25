@@ -16,10 +16,10 @@
   },
   "dependencies": {
     "@pierre/diffs": "1.2.3",
-    "@pierre/theme": "0.0.29",
+    "@pierre/theme": "1.0.3",
     "ansis": "4.3.0",
     "arktype": "2.2.0",
-    "diff": "8.0.4",
+    "diff": "9.0.0",
     "shiki": "4.1.0",
     "smol-toml": "1.6.1"
   },
@@ -28,7 +28,7 @@
     "@biomejs/biome": "2.4.15"
   },
   "peerDependencies": {
-    "typescript": "5.9.3"
+    "typescript": "6.0.3"
   },
   "version": "1.0.0"
 }
