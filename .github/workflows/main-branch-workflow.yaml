@@ -1,17 +1,32 @@
 name: main branch workflow
 
+# Every push to main runs as one pipeline with visible, chained jobs:
+#   build and verify -> checks + tests + build (also covers direct pushes)
+#   plan             -> read the merged PR's semver label for this commit
+#   tag              -> if a patch/minor/major label was found: bump + tag + push
+#   publish          -> build all targets + create the GitHub release
+#
+# Push-triggered (not pull_request) so direct pushes are still verified and the
+# whole thing is one run. The release stages only fire when the commit's PR
+# carries a semver label. The bump commit/tag are pushed with GITHUB_TOKEN, which
+# does not re-trigger this workflow, so there is no release loop.
+
 on:
   push:
     branches: [main]
 
+concurrency:
+  group: main-branch
+  cancel-in-progress: false
+
 permissions:
-  contents: read
+  contents: write
+  pull-requests: read
 
 jobs:
-  main_branch_workflow:
-    name: main branch workflow
+  verify:
+    name: build and verify
     runs-on: ubuntu-latest
-
     steps:
       - name: checkout
         uses: actions/checkout@v6
@@ -32,3 +47,106 @@ jobs:
 
       - name: build
         run: make build
+
+  plan:
+    name: plan release
+    needs: verify
+    runs-on: ubuntu-latest
+    outputs:
+      level: ${{ steps.level.outputs.level }}
+    steps:
+      - name: determine release level from the commit's PR label
+        id: level
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          labels="$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" \
+            --jq '.[].labels[].name' 2>/dev/null || true)"
+          if printf '%s\n' "$labels" | grep -qx major; then
+            level=major
+          elif printf '%s\n' "$labels" | grep -qx minor; then
+            level=minor
+          elif printf '%s\n' "$labels" | grep -qx patch; then
+            level=patch
+          else
+            level=
+            echo "No semver label on this commit's PR; skipping release."
+          fi
+          echo "level=$level" >>"$GITHUB_OUTPUT"
+
+  tag:
+    name: bump and tag
+    needs: plan
+    if: needs.plan.outputs.level != ''
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - name: checkout main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install dependencies
+        run: make install-frozen
+
+      - name: bump, tag, and push
+        id: bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          bun pm version "${{ needs.plan.outputs.level }}"
+          tag="v$(bun pm pkg get version | tr -d '"')"
+          # Push commit and tag explicitly. --follow-tags only pushes annotated
+          # tags, so don't depend on bun's tag type reaching origin.
+          git push origin HEAD:main
+          git push origin "refs/tags/$tag"
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "Released $tag (${{ needs.plan.outputs.level }})."
+
+  publish:
+    name: publish
+    needs: tag
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.tag.outputs.tag }}
+    steps:
+      - name: checkout tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+
+      - name: setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: install dependencies
+        run: make install-frozen
+
+      - name: verify tag matches package.json version
+        run: |
+          package_version="$(bun pm pkg get version | tr -d '"')"
+          if [ "$TAG" != "v$package_version" ]; then
+            echo "Tag $TAG does not match package.json version v$package_version." >&2
+            exit 1
+          fi
+          echo "Tag $TAG matches package.json version."
+
+      - name: build release binaries
+        run: make release
+
+      - name: create github release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$TAG" \
+            dist/suiseki-* dist/checksums.txt \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag
