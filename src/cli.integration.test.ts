@@ -197,6 +197,20 @@ describe("view subcommand", () => {
     expect(stripAnsi(stdout)).not.toContain("▾")
   })
 
+  test("shows dotfiles by default and hides them with --all=false", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "suiseki-dotfiles-"))
+    await writeFile(join(dir, "visible.ts"), "")
+    await writeFile(join(dir, ".hidden.ts"), "")
+
+    const shown = await runCli(["view", dir])
+    expect(stripAnsi(shown.stdout)).toContain(".hidden.ts")
+
+    const hidden = await runCli(["view", "--all=false", dir])
+    expect(stripAnsi(hidden.stdout)).not.toContain(".hidden.ts")
+
+    await rm(dir, { recursive: true, force: true })
+  })
+
   test("reports a missing path on stderr", async () => {
     const { exitCode, stdout, stderr } = await runCli([
       "view",
