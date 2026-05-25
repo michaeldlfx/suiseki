@@ -72,35 +72,114 @@ export async function resolveRepoContext(
   return { repoRoot, subPrefix }
 }
 
+// How gitignored entries appear in the tree.
+export type GitignoredMode = "hidden" | "collapsed" | "expanded"
+
+export type CollectedTree = {
+  paths: string[]
+  // treeRoot-relative directory paths (trailing slash) to render collapsed: the
+  // gitignored dirs in "collapsed" mode. Empty for hidden/expanded.
+  collapsedDirectories: Set<string>
+}
+
 type CollectTreePathsParams = {
-  all: boolean
+  gitignored: GitignoredMode
   repoContext: RepoContext | null
+  showHidden: boolean
   treeRoot: string
 }
 
 export async function collectTreePaths({
-  all,
+  gitignored,
   repoContext,
+  showHidden,
   treeRoot,
-}: CollectTreePathsParams): Promise<string[]> {
-  if (repoContext != null) {
-    const lsFilesArguments = ["ls-files", "--cached", "--others"]
-    if (!all) {
-      lsFilesArguments.push("--exclude-standard")
-    }
-    const lsFiles = await runGit(lsFilesArguments, repoContext.repoRoot)
-    if (lsFiles.ok) {
-      return reconcileToTreeRoot(splitLines(lsFiles.stdout), repoContext)
+}: CollectTreePathsParams): Promise<CollectedTree> {
+  // Outside a repo, or when the requested root is itself gitignored (you pointed
+  // at it, e.g. `sat node_modules/`), there is no gitignore filter to apply —
+  // show the directory's real contents.
+  if (repoContext == null || (await isTreeRootIgnored(repoContext))) {
+    const paths = await walkFilesystem(treeRoot, showHidden)
+    return { paths, collapsedDirectories: new Set() }
+  }
+
+  const tracked = await runGit(
+    ["ls-files", "--cached", "--others", "--exclude-standard"],
+    repoContext.repoRoot,
+  )
+  const nonIgnored = tracked.ok
+    ? reconcileToTreeRoot(splitLines(tracked.stdout), repoContext)
+    : []
+
+  if (gitignored === "hidden") {
+    return {
+      paths: filterHidden(nonIgnored, showHidden),
+      collapsedDirectories: new Set(),
     }
   }
 
-  return walkFilesystem(treeRoot, all)
+  if (gitignored === "expanded") {
+    const everything = await runGit(
+      ["ls-files", "--cached", "--others"],
+      repoContext.repoRoot,
+    )
+    const paths = everything.ok
+      ? reconcileToTreeRoot(splitLines(everything.stdout), repoContext)
+      : nonIgnored
+    return {
+      paths: filterHidden(paths, showHidden),
+      collapsedDirectories: new Set(),
+    }
+  }
+
+  // collapsed: include ignored entries, but `--directory` collapses a fully
+  // ignored dir to a single `node_modules/` marker (trailing slash) instead of
+  // its contents. Those markers render collapsed; ignored files show as leaves.
+  const ignored = await runGit(
+    ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory"],
+    repoContext.repoRoot,
+  )
+  const ignoredPaths = ignored.ok
+    ? reconcileToTreeRoot(splitLines(ignored.stdout), repoContext)
+    : []
+  const collapsedDirectories = new Set(
+    ignoredPaths.filter((path) => path.endsWith("/")),
+  )
+  return {
+    paths: filterHidden([...nonIgnored, ...ignoredPaths], showHidden),
+    collapsedDirectories,
+  }
+}
+
+// Whether the tree root is itself a gitignored path (so the gitignore filter
+// should not apply — the user navigated into it explicitly).
+async function isTreeRootIgnored(repoContext: RepoContext): Promise<boolean> {
+  if (repoContext.subPrefix === "") {
+    return false
+  }
+  const relativePath = repoContext.subPrefix.replace(/\/$/, "")
+  const result = await runGit(
+    ["check-ignore", relativePath],
+    repoContext.repoRoot,
+  )
+  return result.ok
+}
+
+// Drops paths with a dot-prefixed segment when hidden files are not shown.
+function filterHidden(paths: string[], showHidden: boolean): string[] {
+  if (showHidden) {
+    return paths
+  }
+  return paths.filter(
+    (path) => !path.split("/").some((segment) => segment.startsWith(".")),
+  )
 }
 
 type CollectRevealPathsParams = {
-  all: boolean
+  gitignored: GitignoredMode
   highlightPath: string
   repoContext: RepoContext | null
+  showHidden: boolean
   treeRoot: string
 }
 
@@ -112,9 +191,10 @@ type CollectRevealPathsParams = {
 // only the one path to the viewed file. The viewed file is always included (even
 // when gitignored) so it appears highlighted in its own sidebar.
 export async function collectRevealPaths({
-  all,
+  gitignored,
   highlightPath,
   repoContext,
+  showHidden,
   treeRoot,
 }: CollectRevealPathsParams): Promise<string[]> {
   const directoriesToList = ["", ...getAncestorDirectoryPaths(highlightPath)]
@@ -128,7 +208,7 @@ export async function collectRevealPaths({
       if (entry.name === ".git") {
         continue
       }
-      if (!all && entry.name.startsWith(".")) {
+      if (!showHidden && entry.name.startsWith(".")) {
         continue
       }
       const isDirectory = entry.isDirectory()
@@ -142,8 +222,11 @@ export async function collectRevealPaths({
     }
   }
 
+  // Only "hidden" mode drops gitignored entries. In collapsed/expanded they stay,
+  // and the sidebar renders off-path dirs collapsed regardless, so an ignored
+  // sibling shows as a single collapsed marker either way.
   const ignored =
-    all || repoContext == null
+    gitignored !== "hidden" || repoContext == null
       ? new Set<string>()
       : await findIgnoredPaths(
           candidates.map((candidate) => candidate.relativePath),
@@ -336,7 +419,7 @@ function unquoteGitPath(pathPart: string): string {
 
 async function walkFilesystem(
   treeRoot: string,
-  all: boolean,
+  showHidden: boolean,
 ): Promise<string[]> {
   const paths: string[] = []
 
@@ -349,7 +432,7 @@ async function walkFilesystem(
       if (entry.name === ".git") {
         continue
       }
-      if (!all && entry.name.startsWith(".")) {
+      if (!showHidden && entry.name.startsWith(".")) {
         continue
       }
 

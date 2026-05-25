@@ -95,6 +95,10 @@ const EXPANDED_DIRECTORY_ICON = "▾ "
 const COLLAPSED_DIRECTORY_ICON = "▸ "
 
 type RenderTreeParams = {
+  // Directories whose path is in this set always render collapsed (▸), whatever
+  // expandedDirectories says. Used by the plain tree to collapse gitignored dirs
+  // (e.g. node_modules/) without drilling in.
+  collapsedDirectories?: ReadonlySet<string>
   // When provided, only directories whose path is in this set are expanded;
   // others render collapsed (▸) with their children hidden. Undefined expands
   // every directory (the plain `sat <dir>` tree). Used by the `--with-tree`
@@ -111,6 +115,7 @@ type RenderTreeParams = {
 }
 
 export function renderTreeLines({
+  collapsedDirectories,
   expandedDirectories,
   gitStatus,
   highlightPath,
@@ -129,6 +134,7 @@ export function renderTreeLines({
   ]
   renderChildren({
     ancestorPrefix: "",
+    collapsedDirectories,
     expandedDirectories,
     gitStatus,
     hasStatusColumn,
@@ -143,6 +149,7 @@ export function renderTreeLines({
 
 type RenderChildrenParams = {
   ancestorPrefix: string
+  collapsedDirectories: ReadonlySet<string> | undefined
   expandedDirectories: ReadonlySet<string> | undefined
   gitStatus: GitStatusState | null
   hasStatusColumn: boolean
@@ -155,6 +162,7 @@ type RenderChildrenParams = {
 
 function renderChildren({
   ancestorPrefix,
+  collapsedDirectories,
   expandedDirectories,
   gitStatus,
   hasStatusColumn,
@@ -170,6 +178,7 @@ function renderChildren({
     const branch = isLastChild ? "└── " : "├── "
     const isExpandedDirectory =
       node.isDirectory &&
+      collapsedDirectories?.has(node.path) !== true &&
       (expandedDirectories == null || expandedDirectories.has(node.path))
     const statusColumn = hasStatusColumn
       ? renderStatusColumn({ gitStatus, node, palette })
@@ -192,6 +201,7 @@ function renderChildren({
     if (isExpandedDirectory && node.children.length > 0) {
       renderChildren({
         ancestorPrefix: `${ancestorPrefix}${isLastChild ? "    " : "│   "}`,
+        collapsedDirectories,
         expandedDirectories,
         gitStatus,
         hasStatusColumn,

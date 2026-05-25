@@ -19,6 +19,7 @@ import { runThemesCommand } from "./themes-command"
 import {
   collectRevealPaths,
   collectTreePaths,
+  type GitignoredMode,
   loadGitStatus,
   type RepoContext,
   resolveRepoContext,
@@ -168,7 +169,7 @@ type ViewInput =
 // polymorphic: a file path shows content, a directory path shows its tree, and
 // stdin is read when piped or for "-".
 async function runViewCommand(viewArguments: string[]): Promise<void> {
-  const { all, gitStatus, icons, rest, withTree } =
+  const { gitignored, gitStatus, icons, rest, showHidden, withTree } =
     extractViewFlags(viewArguments)
   const parsedOptions = parseCliOptions(rest)
   if (parsedOptions.version) {
@@ -187,9 +188,10 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
     overrides: parsedOptions.overrides,
     suisekiEnv,
   })
-  // `--all`/`-a` (or `--all=false`) override the `[view].all` default, which is
-  // on: dotfiles and gitignored entries are shown unless explicitly disabled.
-  const allEnabled = all ?? configuration.view.all
+  // Per-flag overrides (`--gitignored=`, `--hidden`/`--no-hidden`) win, otherwise
+  // the `[view]` config defaults decide.
+  const resolvedGitignored = gitignored ?? configuration.view.gitignored
+  const resolvedShowHidden = showHidden ?? configuration.view.hidden
 
   // `view`/`sat` takes a single path (or none, for stdin/cwd). Reject extra
   // paths loudly rather than silently viewing only the first.
@@ -208,12 +210,13 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
 
   if (target === "tree") {
     await emitTree({
-      all: allEnabled,
       configuration,
+      gitignored: resolvedGitignored,
       gitStatus,
       icons,
       noColor,
       noPager,
+      showHidden: resolvedShowHidden,
       treeRoot: pathArgument ?? ".",
     })
     return
@@ -239,13 +242,14 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
     getTerminalWidth() >= MIN_WIDTH_FOR_TREE
   ) {
     await emitFileWithTree({
-      all: allEnabled,
       configuration,
+      gitignored: resolvedGitignored,
       gitStatus,
       icons,
       input,
       noColor,
       noPager,
+      showHidden: resolvedShowHidden,
     })
     return
   }
@@ -254,23 +258,25 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
 }
 
 type EmitFileWithTreeParams = {
-  all: boolean
   configuration: SuisekiConfig
+  gitignored: GitignoredMode
   gitStatus: boolean
   icons: boolean
   input: { content: string; fileName: string }
   noColor: boolean
   noPager: boolean
+  showHidden: boolean
 }
 
 async function emitFileWithTree({
-  all,
   configuration,
+  gitignored,
   gitStatus,
   icons,
   input,
   noColor,
   noPager,
+  showHidden,
 }: EmitFileWithTreeParams): Promise<void> {
   // Root the sidebar at the project (repo root, or cwd outside a repo) and
   // reveal just the path to the file: expand its ancestor directories, collapse
@@ -299,13 +305,17 @@ async function emitFileWithTree({
   // need only their names. O(path depth), not a full-repo walk. The viewed file
   // is always included (even when gitignored) so it shows in its own sidebar.
   const paths = await collectRevealPaths({
-    all,
+    gitignored,
     highlightPath,
     repoContext: sidebarContext,
+    showHidden,
     treeRoot: sidebarRoot,
   })
   const gitStatusState = gitStatus
-    ? await loadGitStatus({ includeIgnored: all, repoContext: sidebarContext })
+    ? await loadGitStatus({
+        includeIgnored: gitignored !== "hidden",
+        repoContext: sidebarContext,
+      })
     : null
   const lines = await renderWithTreeLines({
     configuration,
@@ -431,29 +441,33 @@ function isBinaryContent(bytes: Uint8Array): boolean {
 }
 
 type ViewFlags = {
-  // undefined when neither --all/-a nor --all=<bool> was given, so the config
-  // default ([view].all) decides.
-  all: boolean | undefined
+  // undefined when not given, so `[view].gitignored` decides (`--gitignored=<mode>`).
+  gitignored: GitignoredMode | undefined
   gitStatus: boolean
   icons: boolean
   rest: string[]
+  // undefined when not given, so `[view].hidden` decides (`--hidden`/`--no-hidden`).
+  showHidden: boolean | undefined
   // undefined when neither --with-tree nor --with-tree=<bool> was given, so the
   // config default ([view].with-tree) decides.
   withTree: boolean | undefined
 }
 
 function extractViewFlags(viewArguments: string[]): ViewFlags {
-  let all: boolean | undefined
+  let gitignored: GitignoredMode | undefined
   let gitStatus = true
   let icons = true
+  let showHidden: boolean | undefined
   let withTree: boolean | undefined
   const rest: string[] = []
 
   for (const argument of viewArguments) {
-    if (argument === "--all" || argument === "-a") {
-      all = true
-    } else if (argument.startsWith("--all=")) {
-      all = parseBooleanFlagValue("--all", argument.slice("--all=".length))
+    if (argument.startsWith("--gitignored=")) {
+      gitignored = parseGitignoredMode(argument.slice("--gitignored=".length))
+    } else if (argument === "--hidden") {
+      showHidden = true
+    } else if (argument === "--no-hidden") {
+      showHidden = false
     } else if (argument === "--git-status") {
       gitStatus = true
     } else if (argument === "--no-git-status") {
@@ -474,7 +488,7 @@ function extractViewFlags(viewArguments: string[]): ViewFlags {
     }
   }
 
-  return { all, gitStatus, icons, rest, withTree }
+  return { gitignored, gitStatus, icons, rest, showHidden, withTree }
 }
 
 function parseBooleanFlagValue(flag: string, rawValue: string): boolean {
@@ -487,32 +501,54 @@ function parseBooleanFlagValue(flag: string, rawValue: string): boolean {
   throw new CliError(`${flag} must be true or false`)
 }
 
+function parseGitignoredMode(rawValue: string): GitignoredMode {
+  if (
+    rawValue === "hidden" ||
+    rawValue === "collapsed" ||
+    rawValue === "expanded"
+  ) {
+    return rawValue
+  }
+  throw new CliError("--gitignored must be hidden, collapsed, or expanded")
+}
+
 type EmitTreeParams = {
-  all: boolean
   configuration: SuisekiConfig
+  gitignored: GitignoredMode
   gitStatus: boolean
   icons: boolean
   noColor: boolean
   noPager: boolean
+  showHidden: boolean
   treeRoot: string
 }
 
 async function emitTree({
-  all,
   configuration,
+  gitignored,
   gitStatus,
   icons,
   noColor,
   noPager,
+  showHidden,
   treeRoot,
 }: EmitTreeParams): Promise<void> {
   const repoContext = await resolveRepoContext(treeRoot)
-  const paths = await collectTreePaths({ all, repoContext, treeRoot })
+  const { paths, collapsedDirectories } = await collectTreePaths({
+    gitignored,
+    repoContext,
+    showHidden,
+    treeRoot,
+  })
   const gitStatusState = gitStatus
-    ? await loadGitStatus({ includeIgnored: all, repoContext })
+    ? await loadGitStatus({
+        includeIgnored: gitignored !== "hidden",
+        repoContext,
+      })
     : null
   const context = await prepareRenderContext(configuration)
   const lines = renderTreeLines({
+    collapsedDirectories,
     gitStatus: gitStatusState,
     palette: context.palette,
     root: buildTree(paths),
@@ -658,8 +694,10 @@ function getViewHelpText(): string {
     "  --max-file-lines <number>",
     "",
     "Tree options (when the argument is a directory):",
-    "  --all, -a        Include dotfiles and gitignored entries (on by default;",
-    "                   --all=false to hide them for one run)",
+    "  --gitignored=<hidden|collapsed|expanded>",
+    "                   How gitignored dirs appear (default collapsed: shown but",
+    "                   not drilled into). `sat <ignored-dir>` always shows inside.",
+    "  --hidden / --no-hidden   Show or hide dotfiles (shown by default)",
     "  --no-icons       Hide directory glyphs (shown by default)",
     "  --no-git-status  Hide the git status column (on by default in a repo)",
     "",
