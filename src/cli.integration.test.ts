@@ -1,9 +1,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { stripAnsi } from "./ansi"
-import { version } from "./version"
 
 type CliResult = {
   exitCode: number
@@ -11,8 +10,11 @@ type CliResult = {
   stderr: string
 }
 
+// Every CLI invocation runs the compiled binary built once in beforeAll, not a
+// fresh `bun run src/cli.ts` per test: the binary skips re-transpiling the whole
+// module graph on each spawn, and it is exactly the artifact that ships.
 async function runCli(cliArguments: string[]): Promise<CliResult> {
-  return runProcess(["bun", "run", "src/cli.ts", ...cliArguments], {})
+  return runProcess([suisekiBinary, ...cliArguments], {})
 }
 
 async function runProcess(
@@ -40,7 +42,7 @@ describe("cli.ts", () => {
       const { exitCode, stdout, stderr } = await runCli(["--version"])
 
       expect(exitCode).toEqual(0)
-      expect(stdout).toEqual(`suiseki ${version}\n`)
+      expect(stdout).toEqual(`suiseki ${expectedVersion}\n`)
       expect(stderr).toEqual("")
     })
 
@@ -48,13 +50,19 @@ describe("cli.ts", () => {
       const { exitCode, stdout } = await runCli(["-v"])
 
       expect(exitCode).toEqual(0)
-      expect(stdout).toEqual(`suiseki ${version}\n`)
+      expect(stdout).toEqual(`suiseki ${expectedVersion}\n`)
     })
   })
 
   describe("upgrade subcommand", () => {
+    // This guard fires only when running from source, so this one case must run
+    // `bun run src/cli.ts` rather than the compiled binary the other tests use:
+    // a compiled binary reads as installed and would proceed to a network call.
     test("refuses to upgrade when running from source, before any network call", async () => {
-      const { exitCode, stdout, stderr } = await runCli(["upgrade"])
+      const { exitCode, stdout, stderr } = await runProcess(
+        ["bun", "run", "src/cli.ts", "upgrade"],
+        {},
+      )
 
       expect(exitCode).toEqual(1)
       expect(stdout).toEqual("")
@@ -84,7 +92,12 @@ describe("cli.ts", () => {
 
 let workspace: string
 let configHome: string
+let suisekiBinary: string
 let satBinary: string
+// The version build.sh stamps into the compiled binary: package.json's value, or
+// "dev" when unset (matching version.ts). Read from the same source the binary
+// is built from so the assertion can't drift from what `--version` prints.
+let expectedVersion: string
 // Spawned processes run with this env so they ignore the developer's SUISEKI_*
 // variables and ~/.suiseki config and exercise built-in defaults instead.
 let hermeticEnv: Record<string, string> = {}
@@ -99,19 +112,31 @@ beforeAll(async () => {
   await writeFile(join(workspace, "lib", "util.ts"), "export const util = 1\n")
   await writeFile(join(workspace, "data.bin"), new Uint8Array([0, 1, 2, 0, 3]))
 
-  satBinary = join(workspace, "sat")
+  suisekiBinary = join(workspace, "suiseki")
+  // Build through the same script `make build` and the release pipeline use, so
+  // the integration binary cannot drift from what ships (version stamp, and any
+  // future compile flags build.sh grows). It takes the outfile as its argument.
+  // SUISEKI_RELEASE builds the shipping variant: a bare version with no +dev
+  // suffix, so `--version` is deterministic and matches package.json.
   const build = Bun.spawn(
-    [
-      "bun",
-      "build",
-      `${import.meta.dir}/cli.ts`,
-      "--compile",
-      "--outfile",
-      satBinary,
-    ],
-    { stdout: "ignore", stderr: "ignore" },
+    [`${import.meta.dir}/../scripts/build.sh`, suisekiBinary],
+    {
+      env: { ...process.env, SUISEKI_RELEASE: "1" },
+      stdout: "ignore",
+      stderr: "ignore",
+    },
   )
   await build.exited
+
+  const packageManifest = await Bun.file(
+    `${import.meta.dir}/../package.json`,
+  ).json()
+  expectedVersion = packageManifest.version ?? "dev"
+
+  // `sat` is the same binary under a second name; invoked through this symlink
+  // it dispatches to the viewer via argv0. Relative target mirrors `make setup`.
+  satBinary = join(workspace, "sat")
+  await symlink("suiseki", satBinary)
 
   configHome = await mkdtemp(join(tmpdir(), "suiseki-empty-"))
   hermeticEnv = {}
@@ -196,7 +221,7 @@ describe("view subcommand", () => {
 
   test("reads file content from stdin via -", async () => {
     const { exitCode, stdout } = await runProcess(
-      ["bun", "run", "src/cli.ts", "view", "-"],
+      [suisekiBinary, "view", "-"],
       { input: "const fromStdin = 1\n" },
     )
 
@@ -240,10 +265,10 @@ describe("view --with-tree", () => {
     viewArguments: string[],
     env?: Record<string, string>,
   ): Promise<CliResult> {
-    return runProcess(
-      ["bun", "run", `${import.meta.dir}/cli.ts`, "view", ...viewArguments],
-      { cwd: workspace, env },
-    )
+    return runProcess([suisekiBinary, "view", ...viewArguments], {
+      cwd: workspace,
+      env,
+    })
   }
 
   test("shows the file beside its surrounding directory tree", async () => {
