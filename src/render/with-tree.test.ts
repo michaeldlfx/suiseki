@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { stripAnsi } from "../ansi"
 import { DEFAULT_CONFIG, type SuisekiConfig } from "../config"
 import { getTerminalWidth } from "./highlight"
-import { renderWithTreeLines } from "./with-tree"
+import { computeTreeLayout, renderWithTreeLines } from "./with-tree"
 
 function defaultConfig(): SuisekiConfig {
   return {
@@ -32,6 +32,40 @@ function renderRows(
     ...overrides,
   })
 }
+
+describe("computeTreeLayout", () => {
+  test("fits the tree to its widest line when it fits within half the width", () => {
+    const layout = computeTreeLayout({ terminalWidth: 140, widestTreeLine: 49 })
+
+    // available = 140 - 3 = 137; 49 < floor(137 / 2), so the full tree fits.
+    expect(layout.treeColumnWidth).toEqual(49)
+    expect(layout.fileColumnWidth).toEqual(88)
+  })
+
+  test("caps the tree at half the width so the file keeps the larger share", () => {
+    const layout = computeTreeLayout({
+      terminalWidth: 100,
+      widestTreeLine: 200,
+    })
+
+    // available = 97; the tree is capped at floor(97 / 2) = 48, file gets 49.
+    expect(layout.treeColumnWidth).toEqual(48)
+    expect(layout.fileColumnWidth).toEqual(49)
+  })
+
+  test("never narrows the file below the tree, even for an extremely wide tree", () => {
+    const narrow = computeTreeLayout({
+      terminalWidth: 100,
+      widestTreeLine: 999,
+    })
+    const wide = computeTreeLayout({ terminalWidth: 200, widestTreeLine: 999 })
+
+    expect(narrow.fileColumnWidth).toBeGreaterThanOrEqual(
+      narrow.treeColumnWidth,
+    )
+    expect(wide.fileColumnWidth).toBeGreaterThanOrEqual(wide.treeColumnWidth)
+  })
+})
 
 describe("renderWithTreeLines", () => {
   test("places the tree on the left and file content on the right of a separator", async () => {
