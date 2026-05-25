@@ -15,8 +15,8 @@ Core constraints:
 - Never modify user files.
 - Compile to a single local `suiseki` binary with Bun.
 - Stay in the TypeScript/Bun ecosystem; do not introduce Go tooling.
-- Do not build interactive terminal UI behavior unless the plan explicitly changes.
-- Keep normal `stdout` clean for rendered output. Send errors and diagnostics to `stderr`, and do not introduce service-style logging dependencies such as `pino` unless the plan identifies a concrete need.
+- Do not build interactive terminal UI behavior unless the project's direction explicitly changes.
+- Keep normal `stdout` clean for rendered output. Send errors and diagnostics to `stderr`, and do not introduce service-style logging dependencies such as `pino` unless there is a concrete need.
 
 ## Essential Commands
 
@@ -41,18 +41,13 @@ All commands are available via `make`. Run `make` or `make help` to see the full
 ### Tech Stack
 - **Runtime**: Bun, TypeScript
 - **Binary output**: `bun build --compile`
-- **Syntax highlighting**: Shiki tokenization and Shiki-compatible themes (planned renderer core)
-- **Diff parsing**: `@pierre/diffs` parsing/iteration utilities (planned renderer core)
+- **Syntax highlighting**: Shiki tokenization and Shiki-compatible themes
+- **Diff parsing**: `@pierre/diffs` parsing/iteration utilities
 - **ANSI output**: direct ANSI emission, with `ansis` available for helpers
 - **Config**: `smol-toml` for TOML config parsing
 - **Validation**: Arktype (TypeScript-first runtime validation)
 - **Testing**: Bun test
 - **Tooling**: Biome (formatting/linting)
-
-### Plans
-- `plans/00-building-suiseki.md` - Product plan, roadmap, architecture constraints, and release direction.
-- Keep implementation work aligned with the current phase in that plan.
-- Add future ideas to the plan only if they fit the read-only terminal viewer scope.
 
 ## Development Patterns
 

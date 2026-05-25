@@ -2,7 +2,9 @@
 
 > A terminal renderer for diffs, files, and trees.
 
-<!-- TODO(screenshot): hero shot of a real git diff rendered by suiseki, unified and split, with the pierre-dark theme. -->
+![suiseki rendering a git diff in unified view, syntax-highlighted with the pierre-dark theme](assets/diff-unified.png)
+
+![the same diff rendered in split view](assets/diff-split.png)
 
 
 **Pierre** is French for *stone*. This tool builds on [`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs) for diff parsing and [Shiki](https://shiki.style) for syntax highlighting, and models its file tree on [`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees); the Pierre packages are the work of [The Pierre Computer Company](https://diffs.com).
@@ -152,7 +154,9 @@ name that mirrors `cat` and `bat`: the `s` is for `suiseki`, and `at` echoes
 `sat <path>` is exactly `suiseki view <path>`, whether `<path>` is a file (show
 its contents) or a directory (print its tree).
 
-<!-- TODO(screenshot): `sat src/render/diff.ts` (highlighting + line numbers), and `sat .` (tree with the git-status column). -->
+![sat showing a source file beside its directory tree, with syntax highlighting and line numbers](assets/sat-file.png)
+
+![sat printing a directory tree with the git-status column](assets/sat-tree.png)
 
 ```bash
 # view a file: by default (on a wide terminal) it is shown beside its directory
