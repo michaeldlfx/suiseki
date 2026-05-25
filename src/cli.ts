@@ -187,6 +187,14 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
     suisekiEnv,
   })
 
+  // `view`/`sat` takes a single path (or none, for stdin/cwd). Reject extra
+  // paths loudly rather than silently viewing only the first.
+  if (parsedOptions.gitArguments.length > 1) {
+    throw new CliError(
+      `view accepts a single path, but got ${parsedOptions.gitArguments.length}: ${parsedOptions.gitArguments.join(", ")}`,
+    )
+  }
+
   const pathArgument = parsedOptions.gitArguments[0]
   const target = await classifyViewTargetFromPath(pathArgument)
 
@@ -209,7 +217,8 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
 
   const input = await readFileInput({ pathArgument, target })
   if (input.kind === "binary") {
-    process.stderr.write(`${input.fileName}: binary file — not shown\n`)
+    const source = input.fileName === "" ? "stdin" : input.fileName
+    process.stderr.write(`${source}: binary file — not shown\n`)
     return
   }
 
@@ -377,8 +386,20 @@ async function readFileInput({
   pathArgument,
   target,
 }: ReadFileInputParams): Promise<ViewInput> {
+  // Both branches read all bytes up front (the file is materialized in memory),
+  // then NUL-sniff for binary so `cat image.png | sat` and `sat image.bin` both
+  // refuse rather than dumping raw bytes into the terminal. The streaming in
+  // streamFileViewLines saves per-line tokenization on early exit, not memory.
   if (target === "stdin") {
-    return { kind: "text", content: await Bun.stdin.text(), fileName: "" }
+    const bytes = await Bun.stdin.bytes()
+    if (isBinaryContent(bytes)) {
+      return { kind: "binary", fileName: "" }
+    }
+    return {
+      kind: "text",
+      content: new TextDecoder().decode(bytes),
+      fileName: "",
+    }
   }
 
   const filePath = pathArgument as string
