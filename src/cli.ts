@@ -17,6 +17,7 @@ import { buildTree, renderTreeLines } from "./render/tree"
 import { MIN_WIDTH_FOR_TREE, renderWithTreeLines } from "./render/with-tree"
 import { runThemesCommand } from "./themes-command"
 import {
+  collectRevealPaths,
   collectTreePaths,
   loadGitStatus,
   type RepoContext,
@@ -290,17 +291,16 @@ async function emitFileWithTree({
   }
   const rootLabel = basename(sidebarRoot) || sidebarRoot
 
-  const paths = await collectTreePaths({
+  // The sidebar expands only the one path to the viewed file, so collect just
+  // the direct children of each directory along that path; collapsed siblings
+  // need only their names. O(path depth), not a full-repo walk. The viewed file
+  // is always included (even when gitignored) so it shows in its own sidebar.
+  const paths = await collectRevealPaths({
     all,
+    highlightPath,
     repoContext: sidebarContext,
     treeRoot: sidebarRoot,
   })
-  // The viewed file should always appear in its own sidebar, even when path
-  // collection would omit it (gitignored without `--all`, or a dotfile in a
-  // non-repo walk) — otherwise the tree lacks the very file shown on the right.
-  if (!paths.includes(highlightPath)) {
-    paths.push(highlightPath)
-  }
   const gitStatusState = gitStatus
     ? await loadGitStatus({ includeIgnored: all, repoContext: sidebarContext })
     : null

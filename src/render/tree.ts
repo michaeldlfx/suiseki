@@ -26,9 +26,10 @@ export type TreeNode = {
   path: string
 }
 
-// Builds a nested tree from a flat list of treeRoot-relative file paths.
-// Directories are inferred from path segments; empty directories never appear
-// (git does not track them, and the filesystem walk emits files only).
+// Builds a nested tree from a flat list of treeRoot-relative paths. A path with
+// a trailing slash is a directory entry (a collapsed sibling with no listed
+// children, used by the `--with-tree` reveal layout); any other path's final
+// segment is a file. Intermediate directories are inferred from the segments.
 export function buildTree(paths: readonly string[]): TreeNode {
   const root: TreeNode = {
     children: [],
@@ -39,15 +40,16 @@ export function buildTree(paths: readonly string[]): TreeNode {
   const directoryIndex = new Map<string, TreeNode>([["", root]])
 
   for (const path of paths) {
+    const isDirectoryEntry = path.endsWith("/")
     const segments = path.split("/").filter((segment) => segment !== "")
     let parent = root
     let prefix = ""
 
     for (let index = 0; index < segments.length; index++) {
       const segment = segments[index] as string
-      const isLastSegment = index === segments.length - 1
+      const isFileLeaf = index === segments.length - 1 && !isDirectoryEntry
 
-      if (isLastSegment) {
+      if (isFileLeaf) {
         parent.children.push({
           children: [],
           isDirectory: false,

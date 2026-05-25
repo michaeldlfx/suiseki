@@ -19,8 +19,30 @@ type GitResult = {
 }
 
 async function runGit(args: string[], cwd: string): Promise<GitResult> {
-  const subprocess = Bun.spawn(["git", ...args], {
+  // `core.quotePath=false` forces raw UTF-8 paths from every git command, so
+  // `ls-files` and `status` agree byte-for-byte on non-ASCII filenames. Under
+  // git's default quoting, ls-files paths are used raw while status paths are
+  // unquoted, so a file like `café.ts` would mismatch and lose its status.
+  const subprocess = Bun.spawn(["git", "-c", "core.quotePath=false", ...args], {
     cwd,
+    stdout: "pipe",
+    stderr: "ignore",
+  })
+  const [stdout, exitCode] = await Promise.all([
+    new Response(subprocess.stdout).text(),
+    subprocess.exited,
+  ])
+  return { ok: exitCode === 0, stdout }
+}
+
+async function runGitWithStdin(
+  args: string[],
+  cwd: string,
+  input: string,
+): Promise<GitResult> {
+  const subprocess = Bun.spawn(["git", "-c", "core.quotePath=false", ...args], {
+    cwd,
+    stdin: Buffer.from(input),
     stdout: "pipe",
     stderr: "ignore",
   })
@@ -73,6 +95,101 @@ export async function collectTreePaths({
   }
 
   return walkFilesystem(treeRoot, all)
+}
+
+type CollectRevealPathsParams = {
+  all: boolean
+  highlightPath: string
+  repoContext: RepoContext | null
+  treeRoot: string
+}
+
+// Collects only what the collapsed `--with-tree` sidebar needs to reveal
+// `highlightPath`: the direct children of each directory from the tree root down
+// to the file's parent. Files come back as paths, directories as markers
+// (trailing slash) so collapsed siblings render without walking into them. This
+// is O(path depth), not O(repo) like collectTreePaths, since the sidebar expands
+// only the one path to the viewed file. The viewed file is always included (even
+// when gitignored) so it appears highlighted in its own sidebar.
+export async function collectRevealPaths({
+  all,
+  highlightPath,
+  repoContext,
+  treeRoot,
+}: CollectRevealPathsParams): Promise<string[]> {
+  const directoriesToList = ["", ...getAncestorDirectoryPaths(highlightPath)]
+
+  const candidates: { isDirectory: boolean; relativePath: string }[] = []
+  for (const directory of directoriesToList) {
+    const dirents = await readdir(resolve(treeRoot, directory), {
+      withFileTypes: true,
+    })
+    for (const entry of dirents) {
+      if (entry.name === ".git") {
+        continue
+      }
+      if (!all && entry.name.startsWith(".")) {
+        continue
+      }
+      const isDirectory = entry.isDirectory()
+      if (!isDirectory && !entry.isFile() && !entry.isSymbolicLink()) {
+        continue
+      }
+      candidates.push({
+        isDirectory,
+        relativePath: `${directory}${entry.name}`,
+      })
+    }
+  }
+
+  const ignored =
+    all || repoContext == null
+      ? new Set<string>()
+      : await findIgnoredPaths(
+          candidates.map((candidate) => candidate.relativePath),
+          repoContext,
+        )
+
+  const entries = new Set<string>([highlightPath])
+  for (const candidate of candidates) {
+    if (ignored.has(candidate.relativePath)) {
+      continue
+    }
+    entries.add(
+      candidate.isDirectory
+        ? `${candidate.relativePath}/`
+        : candidate.relativePath,
+    )
+  }
+  return [...entries]
+}
+
+// The subset of treeRoot-relative paths that git ignores (and does not track).
+// One `git check-ignore --stdin` call; it consults the index, so a tracked file
+// matching an ignore rule is correctly not reported as ignored.
+async function findIgnoredPaths(
+  relativePaths: string[],
+  repoContext: RepoContext,
+): Promise<Set<string>> {
+  if (relativePaths.length === 0) {
+    return new Set()
+  }
+  const toRepoRelative = (path: string): string =>
+    `${repoContext.subPrefix}${path}`
+  const checkIgnore = await runGitWithStdin(
+    ["check-ignore", "--stdin"],
+    repoContext.repoRoot,
+    relativePaths.map(toRepoRelative).join("\n"),
+  )
+  const ignoredRepoRelative = new Set(splitLines(checkIgnore.stdout))
+
+  const ignored = new Set<string>()
+  for (const path of relativePaths) {
+    if (ignoredRepoRelative.has(toRepoRelative(path))) {
+      ignored.add(path)
+    }
+  }
+  return ignored
 }
 
 type LoadGitStatusParams = {
