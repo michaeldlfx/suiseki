@@ -70,7 +70,7 @@ describe("tree-source.ts", () => {
   })
 
   describe("collectTreePaths", () => {
-    test("lists tracked and untracked files but excludes gitignored ones", async () => {
+    test("hidden mode lists tracked and untracked files but excludes gitignored ones", async () => {
       const root = await initRepo("suiseki-paths-")
       await writeFile(join(root, ".gitignore"), "ignored.ts\n")
       await writeFile(join(root, "tracked.ts"), "")
@@ -79,9 +79,10 @@ describe("tree-source.ts", () => {
       const context = await resolveRepoContext(root)
       assert(context != null, "context should resolve")
 
-      const paths = await collectTreePaths({
-        all: false,
+      const { paths } = await collectTreePaths({
+        gitignored: "hidden",
         repoContext: context,
+        showHidden: true,
         treeRoot: root,
       })
 
@@ -90,20 +91,64 @@ describe("tree-source.ts", () => {
       expect(paths).not.toContain("ignored.ts")
     })
 
-    test("includes gitignored files with --all", async () => {
+    test("expanded mode includes gitignored files in full", async () => {
       const root = await initRepo("suiseki-paths-")
-      await writeFile(join(root, ".gitignore"), "ignored.ts\n")
-      await writeFile(join(root, "ignored.ts"), "")
+      await writeFile(join(root, ".gitignore"), "ignored/\n")
+      await mkdir(join(root, "ignored"))
+      await writeFile(join(root, "ignored", "deep.ts"), "")
       const context = await resolveRepoContext(root)
       assert(context != null, "context should resolve")
 
-      const paths = await collectTreePaths({
-        all: true,
+      const { paths } = await collectTreePaths({
+        gitignored: "expanded",
         repoContext: context,
+        showHidden: true,
         treeRoot: root,
       })
 
-      expect(paths).toContain("ignored.ts")
+      expect(paths).toContain("ignored/deep.ts")
+    })
+
+    test("collapsed mode shows ignored dirs as markers without their contents", async () => {
+      const root = await initRepo("suiseki-collapse-")
+      await writeFile(join(root, ".gitignore"), "ignored/\n")
+      await mkdir(join(root, "ignored"))
+      await writeFile(join(root, "ignored", "deep.ts"), "")
+      await writeFile(join(root, "tracked.ts"), "")
+      const context = await resolveRepoContext(root)
+      assert(context != null, "context should resolve")
+
+      const { paths, collapsedDirectories } = await collectTreePaths({
+        gitignored: "collapsed",
+        repoContext: context,
+        showHidden: true,
+        treeRoot: root,
+      })
+
+      expect(paths).toContain("tracked.ts")
+      expect(paths).toContain("ignored/")
+      // The collapsed marker, not the contents.
+      expect(paths).not.toContain("ignored/deep.ts")
+      expect(collapsedDirectories.has("ignored/")).toEqual(true)
+    })
+
+    test("a gitignored tree root shows its own contents (root override)", async () => {
+      const root = await initRepo("suiseki-root-")
+      await writeFile(join(root, ".gitignore"), "ignored/\n")
+      await mkdir(join(root, "ignored"))
+      await writeFile(join(root, "ignored", "inside.ts"), "")
+      const context = await resolveRepoContext(join(root, "ignored"))
+      assert(context != null, "context should resolve")
+
+      const { paths } = await collectTreePaths({
+        gitignored: "collapsed",
+        repoContext: context,
+        showHidden: true,
+        treeRoot: join(root, "ignored"),
+      })
+
+      // Pointing at the ignored dir shows what's inside it.
+      expect(paths).toContain("inside.ts")
     })
 
     test("reconciles repo paths to a subdirectory tree root", async () => {
@@ -115,9 +160,10 @@ describe("tree-source.ts", () => {
       const context = await resolveRepoContext(join(root, "pkg"))
       assert(context != null, "context should resolve")
 
-      const paths = await collectTreePaths({
-        all: false,
+      const { paths } = await collectTreePaths({
+        gitignored: "hidden",
         repoContext: context,
+        showHidden: true,
         treeRoot: join(root, "pkg"),
       })
 
@@ -128,28 +174,30 @@ describe("tree-source.ts", () => {
       expect(paths).not.toContain("outside.ts")
     })
 
-    test("walks the filesystem outside a repo, hiding dotfiles unless --all", async () => {
+    test("walks the filesystem outside a repo, hiding dotfiles unless shown", async () => {
       const dir = await tempDir("suiseki-walk-")
       await mkdir(join(dir, "sub"))
       await writeFile(join(dir, "a.ts"), "")
       await writeFile(join(dir, "sub", "b.ts"), "")
       await writeFile(join(dir, ".hidden"), "")
 
-      const visible = await collectTreePaths({
-        all: false,
+      const withoutHidden = await collectTreePaths({
+        gitignored: "collapsed",
         repoContext: null,
+        showHidden: false,
         treeRoot: dir,
       })
-      expect(visible).toContain("a.ts")
-      expect(visible).toContain("sub/b.ts")
-      expect(visible).not.toContain(".hidden")
+      expect(withoutHidden.paths).toContain("a.ts")
+      expect(withoutHidden.paths).toContain("sub/b.ts")
+      expect(withoutHidden.paths).not.toContain(".hidden")
 
-      const withAll = await collectTreePaths({
-        all: true,
+      const withHidden = await collectTreePaths({
+        gitignored: "collapsed",
         repoContext: null,
+        showHidden: true,
         treeRoot: dir,
       })
-      expect(withAll).toContain(".hidden")
+      expect(withHidden.paths).toContain(".hidden")
     })
   })
 
@@ -224,9 +272,10 @@ describe("tree-source.ts", () => {
       await writeFile(join(root, "collapsed-dir", "hidden.ts"), "")
 
       const paths = await collectRevealPaths({
-        all: false,
+        gitignored: "collapsed",
         highlightPath: "a/deep/target.ts",
         repoContext: null,
+        showHidden: true,
         treeRoot: root,
       })
 
@@ -239,7 +288,7 @@ describe("tree-source.ts", () => {
       expect(paths).not.toContain("collapsed-dir/hidden.ts")
     })
 
-    test("excludes gitignored siblings without --all, keeps them with --all", async () => {
+    test("hidden mode excludes gitignored siblings; collapsed keeps them", async () => {
       const root = await initRepo("suiseki-reveal-repo-")
       await writeFile(join(root, ".gitignore"), "ignored-sibling.ts\n")
       await writeFile(join(root, "target.ts"), "")
@@ -248,23 +297,25 @@ describe("tree-source.ts", () => {
       const context = await resolveRepoContext(root)
       assert(context != null, "context should resolve")
 
-      const withoutAll = await collectRevealPaths({
-        all: false,
+      const hidden = await collectRevealPaths({
+        gitignored: "hidden",
         highlightPath: "target.ts",
         repoContext: context,
+        showHidden: true,
         treeRoot: root,
       })
-      expect(withoutAll).toContain("target.ts")
-      expect(withoutAll).toContain("tracked-sibling.ts")
-      expect(withoutAll).not.toContain("ignored-sibling.ts")
+      expect(hidden).toContain("target.ts")
+      expect(hidden).toContain("tracked-sibling.ts")
+      expect(hidden).not.toContain("ignored-sibling.ts")
 
-      const withAll = await collectRevealPaths({
-        all: true,
+      const collapsed = await collectRevealPaths({
+        gitignored: "collapsed",
         highlightPath: "target.ts",
         repoContext: context,
+        showHidden: true,
         treeRoot: root,
       })
-      expect(withAll).toContain("ignored-sibling.ts")
+      expect(collapsed).toContain("ignored-sibling.ts")
     })
   })
 })
