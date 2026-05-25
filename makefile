@@ -33,8 +33,9 @@ start: ## run build binary
 clean: ## remove build artifacts and caches
 	rm -rf bin dist
 
-setup: build ## register suiseki on PATH and create default config (~/.suiseki/config.toml)
+setup: build ## register suiseki + sat on PATH and create default config (~/.suiseki/config.toml)
 	@chmod +x scripts/setup-path.sh && scripts/setup-path.sh "$(CURDIR)/bin"
+	@ln -sf suiseki "$(CURDIR)/bin/sat" && echo "linked sat -> suiseki view ($(CURDIR)/bin/sat)"
 	@./$(BINARY) config --init
 
 init: install build setup ## first-time setup: install deps, build binary, configure shell
