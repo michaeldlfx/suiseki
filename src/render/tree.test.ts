@@ -148,6 +148,46 @@ describe("tree.ts", () => {
       expect(modifiedLine).toContain(ACCENT_ESCAPE)
     })
 
+    test("labels and colors the added, deleted, ignored, and renamed statuses", () => {
+      const root = buildTree([
+        "added.ts",
+        "deleted.ts",
+        "ignored.ts",
+        "renamed.ts",
+      ])
+      const gitStatus: GitStatusState = {
+        statusByPath: new Map([
+          ["added.ts", "added"],
+          ["deleted.ts", "deleted"],
+          ["ignored.ts", "ignored"],
+          ["renamed.ts", "renamed"],
+        ]),
+        directoriesWithChanges: new Set(),
+      }
+      const renderedLines = renderTreeLines({
+        gitStatus,
+        palette: PALETTE,
+        root,
+        rootLabel: ".",
+        showIcons: true,
+      })
+
+      expect(renderedLines.map(stripAnsi)).toEqual([
+        "  .",
+        "+ ├── added.ts",
+        "- ├── deleted.ts",
+        "! ├── ignored.ts",
+        "→ └── renamed.ts",
+      ])
+
+      const lineFor = (fileName: string): string | undefined =>
+        renderedLines.find((line) => stripAnsi(line).includes(fileName))
+      expect(lineFor("added.ts")).toContain("38;2;0;255;0")
+      expect(lineFor("deleted.ts")).toContain("38;2;255;0;0")
+      expect(lineFor("ignored.ts")).toContain("38;2;136;136;136")
+      expect(lineFor("renamed.ts")).toContain(ACCENT_ESCAPE)
+    })
+
     test("emphasizes the file at highlightPath with the accent color", () => {
       const root = buildTree(["file.ts", "other.ts"])
       const highlighted = renderTreeLines({
