@@ -5,7 +5,7 @@
 <!-- TODO(screenshot): hero shot of a real git diff rendered by suiseki, unified and split, with the pierre-dark theme. -->
 
 
-**Pierre** is French for *stone*. The library powering this tool — `@pierre/diffs` — is the work of The Pierre Computer Company.
+**Pierre** is French for *stone*. This tool builds on [`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs) for diff parsing and [Shiki](https://shiki.style) for syntax highlighting, and models its file tree on [`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees); the Pierre packages are the work of [The Pierre Computer Company](https://diffs.com).
 
 **水石 / suiseki** is the Japanese art of stone appreciation — a contemplative practice, imported from Chinese scholar's-rock tradition and refined in Japan, of viewing naturally-formed stones for their beauty: finding landscapes, figures, and quiet meaning in their shape. The literal reading is *water-stone* — stones polished and revealed by water over time.
 
@@ -88,7 +88,7 @@ That's it. Run `git diff` and enjoy.
 
 `suiseki` renders three things in the terminal: **diffs** (unified and split views with Shiki syntax highlighting, theme-derived diff backgrounds, configurable file and hunk headers, line numbers, and pager support), **files** (`suiseki view` / `sat`, a syntax-highlighted file viewer), and **directory trees** (`sat <dir>`, with git status). It works both as a piped Unix filter and as a Git pager.
 
-The project is a friendly terminal surface for Pierre's renderer-agnostic packages and Shiki's syntax/theme ecosystem: `@pierre/diffs` first, `@pierre/trees` next, and Shiki throughout. It is a homage and companion, not a fork or replacement.
+The project is a friendly terminal surface for Pierre's renderer-agnostic packages and Shiki's syntax/theme ecosystem: [`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs) first, [`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees) next, and [Shiki](https://shiki.style) throughout. It is a homage and companion, not a fork or replacement.
 
 ## Usage
 
@@ -313,8 +313,9 @@ when the commit's PR carried a semver label, so direct pushes are just verified.
 ## Tech Stack
 
 - **Bun** + TypeScript for runtime, tests, and single-binary compilation.
-- **Shiki** for syntax tokenization and theme compatibility.
-- **`@pierre/diffs`** for diff parsing and iteration.
+- **[Shiki](https://shiki.style)** for syntax tokenization and theme compatibility.
+- **[`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs)** for diff parsing and iteration.
+- **[`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees)** for the directory tree's renderer-agnostic sort and path model (vendored into `src/vendor/pierre/`, not a runtime dependency).
 - **Arktype** for runtime validation of config, CLI options, and external boundaries.
 - **ansis** for ANSI escape code helpers.
 - **smol-toml** for TOML config parsing.
@@ -323,3 +324,6 @@ when the commit's PR carried a semver label, so direct pushes are just verified.
 ## Credits
 
 `suiseki` is built around the idea that Pierre's renderer-agnostic parsing and tree logic, paired with Shiki's syntax and theme ecosystem, can produce a better terminal viewing experience for code.
+
+- [`@pierre/diffs`](https://github.com/pierrecomputer/pierre/tree/main/packages/diffs) and [`@pierre/trees`](https://github.com/pierrecomputer/pierre/tree/main/packages/trees) by [The Pierre Computer Company](https://github.com/pierrecomputer/pierre) ([diffs.com](https://diffs.com), [trees.software](https://trees.software)), Apache 2.0.
+- [Shiki](https://shiki.style) ([github.com/shikijs/shiki](https://github.com/shikijs/shiki)), MIT.
