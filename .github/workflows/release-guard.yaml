@@ -1,9 +1,13 @@
 name: release guard
 
 # Guards every PR into main for the CI-only release flow:
-#   1. exactly one semver label (patch | minor | major) — this drives the bump
+#   1. exactly one semver label (patch | minor | major) — this drives the bump —
+#      OR the 'documentation' label, which marks a docs-only PR that does not
+#      release (it must not also carry a semver label, and must not touch src/)
 #   2. package.json version is NOT hand-edited — the release pipeline owns the bump,
 #      and a manual edit would make the automatic increment jump unpredictably
+# A documentation PR merges with no semver label, so main-branch-workflow's plan
+# stage skips the release on its own; nothing else is needed there.
 # Re-runs when labels change so the check goes green once a label is fixed.
 #
 # No `opened`: that event's payload can miss labels applied at creation time
@@ -25,21 +29,46 @@ jobs:
       HAS_PATCH: ${{ contains(github.event.pull_request.labels.*.name, 'patch') }}
       HAS_MINOR: ${{ contains(github.event.pull_request.labels.*.name, 'minor') }}
       HAS_MAJOR: ${{ contains(github.event.pull_request.labels.*.name, 'major') }}
+      HAS_DOCS: ${{ contains(github.event.pull_request.labels.*.name, 'documentation') }}
     steps:
-      - name: require exactly one semver label
+      - name: require a release label (one semver label, or documentation)
         run: |
           count=0
           if [ "$HAS_PATCH" = "true" ]; then count=$((count + 1)); fi
           if [ "$HAS_MINOR" = "true" ]; then count=$((count + 1)); fi
           if [ "$HAS_MAJOR" = "true" ]; then count=$((count + 1)); fi
+
+          if [ "$HAS_DOCS" = "true" ]; then
+            if [ "$count" -ne 0 ]; then
+              echo "A 'documentation' PR must not also carry a semver label (found $count)." >&2
+              echo "Documentation PRs do not release; drop the patch/minor/major label." >&2
+              exit 1
+            fi
+            echo "Documentation PR: no semver label, no release."
+            exit 0
+          fi
+
           if [ "$count" -ne 1 ]; then
-            echo "PR must have exactly one semver label: patch, minor, or major (found $count)." >&2
+            echo "PR must have exactly one semver label (patch, minor, or major), or the 'documentation' label (found $count semver labels)." >&2
             exit 1
           fi
           echo "Found exactly one semver label."
 
       - name: checkout
         uses: actions/checkout@v6
+
+      - name: documentation PRs must not change code
+        if: env.HAS_DOCS == 'true'
+        run: |
+          git fetch --depth=1 origin "$GITHUB_BASE_REF"
+          changed_src="$(git diff --name-only FETCH_HEAD -- src || true)"
+          if [ -n "$changed_src" ]; then
+            echo "A 'documentation' PR must not change code under src/:" >&2
+            echo "$changed_src" >&2
+            echo "Remove the 'documentation' label and add a semver label instead." >&2
+            exit 1
+          fi
+          echo "No src/ changes; documentation PR is docs-only."
 
       - name: forbid manual version bump
         run: |
