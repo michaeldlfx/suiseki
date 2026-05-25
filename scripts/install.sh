@@ -58,16 +58,14 @@ detect_asset() {
     *) error "unsupported architecture: $arch" ;;
   esac
 
-  libc_part=""
-  if [ "$os_part" = "linux" ]; then
-    if (ldd --version 2>&1 | grep -qi musl) ||
-      [ -e /lib/ld-musl-x86_64.so.1 ] ||
-      [ -e /lib/ld-musl-aarch64.so.1 ]; then
-      libc_part="-musl"
-    fi
+  # musl is not supported; a glibc binary won't run there, so fail with a clear
+  # message instead of installing one that crashes cryptically.
+  if [ "$os_part" = "linux" ] && { ldd --version 2>&1 | grep -qi musl ||
+    [ -e /lib/ld-musl-x86_64.so.1 ] || [ -e /lib/ld-musl-aarch64.so.1 ]; }; then
+    error "musl-based systems (e.g. Alpine) are not supported"
   fi
 
-  echo "${BIN_NAME}-${os_part}-${arch_part}${libc_part}"
+  echo "${BIN_NAME}-${os_part}-${arch_part}"
 }
 
 asset="$(detect_asset)"

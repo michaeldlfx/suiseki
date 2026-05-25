@@ -59,7 +59,6 @@ class InMemoryReleaseClient implements ReleaseClient {
 const LINUX_X64 = {
   platform: "linux" as NodeJS.Platform,
   arch: "x64",
-  isMusl: false,
 }
 const LINUX_X64_ASSET = "suiseki-linux-x64"
 
@@ -161,72 +160,37 @@ describe("upgrade-command.ts", () => {
   describe("resolveReleaseAssetName", () => {
     test("maps macOS targets", () => {
       expect(
-        resolveReleaseAssetName({
-          platform: "darwin",
-          arch: "arm64",
-          isMusl: false,
-        }),
+        resolveReleaseAssetName({ platform: "darwin", arch: "arm64" }),
       ).toEqual("suiseki-darwin-arm64")
       expect(
-        resolveReleaseAssetName({
-          platform: "darwin",
-          arch: "x64",
-          isMusl: false,
-        }),
+        resolveReleaseAssetName({ platform: "darwin", arch: "x64" }),
       ).toEqual("suiseki-darwin-x64")
     })
 
-    test("maps Linux targets, including the musl suffix", () => {
+    test("maps Linux targets", () => {
       expect(
-        resolveReleaseAssetName({
-          platform: "linux",
-          arch: "x64",
-          isMusl: false,
-        }),
+        resolveReleaseAssetName({ platform: "linux", arch: "x64" }),
       ).toEqual("suiseki-linux-x64")
       expect(
-        resolveReleaseAssetName({
-          platform: "linux",
-          arch: "x64",
-          isMusl: true,
-        }),
-      ).toEqual("suiseki-linux-x64-musl")
-      expect(
-        resolveReleaseAssetName({
-          platform: "linux",
-          arch: "arm64",
-          isMusl: true,
-        }),
-      ).toEqual("suiseki-linux-arm64-musl")
+        resolveReleaseAssetName({ platform: "linux", arch: "arm64" }),
+      ).toEqual("suiseki-linux-arm64")
     })
 
     test("maps Windows targets with the .exe extension", () => {
       expect(
-        resolveReleaseAssetName({
-          platform: "win32",
-          arch: "x64",
-          isMusl: false,
-        }),
+        resolveReleaseAssetName({ platform: "win32", arch: "x64" }),
       ).toEqual("suiseki-windows-x64.exe")
     })
 
     test("throws on an unsupported architecture", () => {
       expect(() =>
-        resolveReleaseAssetName({
-          platform: "linux",
-          arch: "ppc64",
-          isMusl: false,
-        }),
+        resolveReleaseAssetName({ platform: "linux", arch: "ppc64" }),
       ).toThrow(UpgradeError)
     })
 
     test("throws on an unsupported platform", () => {
       expect(() =>
-        resolveReleaseAssetName({
-          platform: "freebsd",
-          arch: "x64",
-          isMusl: false,
-        }),
+        resolveReleaseAssetName({ platform: "freebsd", arch: "x64" }),
       ).toThrow(UpgradeError)
     })
   })

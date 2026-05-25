@@ -2,12 +2,16 @@ name: release guard
 
 # Guards every PR into main for the CI-only release flow:
 #   1. exactly one semver label (patch | minor | major) — this drives the bump
-#   2. package.json version is NOT hand-edited — auto-release.yaml owns the bump,
+#   2. package.json version is NOT hand-edited — the release pipeline owns the bump,
 #      and a manual edit would make the automatic increment jump unpredictably
 # Re-runs when labels change so the check goes green once a label is fixed.
+#
+# No `opened`: that event's payload can miss labels applied at creation time
+# (e.g. `gh pr create --label`), which would fail the label check spuriously.
+# `labeled` and `synchronize` always carry the current labels.
 on:
   pull_request:
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+    types: [reopened, synchronize, labeled, unlabeled]
     branches: [main]
 
 permissions:
@@ -44,7 +48,7 @@ jobs:
           pr_version="$(jq -r .version package.json)"
           if [ "$base_version" != "$pr_version" ]; then
             echo "Do not change package.json version in a PR ($base_version -> $pr_version)." >&2
-            echo "Add a semver label instead; auto-release.yaml bumps and tags on merge." >&2
+            echo "Add a semver label instead; the release pipeline bumps and tags on merge." >&2
             exit 1
           fi
           echo "package.json version unchanged ($pr_version); the label drives the bump."
