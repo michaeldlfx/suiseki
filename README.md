@@ -300,9 +300,12 @@ Run `make` or `make help` to see all available targets:
 
 ### Releasing
 
-Releases are CI-only. Every PR into `main` carries exactly one semver label,
-`patch`, `minor`, or `major`. The `release guard` check enforces that label and
-forbids hand-editing the `package.json` version (the label drives the bump). On
+Releases are CI-only. Every PR into `main` carries exactly one semver label
+(`patch`, `minor`, or `major`), or the `documentation` label for a docs-only PR
+that does not release. The `release guard` check enforces this and forbids
+hand-editing the `package.json` version (the label drives the bump); a
+`documentation` PR must not also carry a semver label or change anything under
+`src/`. On
 push to `main`, `main-branch-workflow.yaml` runs one pipeline: **build and
 verify** (checks + tests + build) → **plan** (read the merged PR's label) →
 **tag** (bump `package.json`, tag `v<version>`, push) → **publish** (build all
