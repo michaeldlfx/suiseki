@@ -111,7 +111,7 @@ Once the features land, the README needs a pass for the broader identity (suisek
 - [x] **`tree` examples** — directory usage with the git-status column, `--all`, and `--no-icons`.
 - [x] **Comparison table** — cut. suiseki describes its own capabilities directly rather than comparing to peers, so the README has no comparison table.
 
-Screenshots and casts are launch presentation, not part of this plan; they are tracked in [`03-making-suiseki-public.md`](./03-making-suiseki-public.md). `TODO(screenshot)` placeholders are already wired into the README so the captures can be dropped in there.
+Screenshots and casts are launch presentation, not part of this plan; they are tracked in [`04-making-suiseki-public.md`](./04-making-suiseki-public.md). `TODO(screenshot)` placeholders are already wired into the README so the captures can be dropped in there.
 
 ## v2 sanity checks
 
@@ -120,4 +120,4 @@ Screenshots and casts are launch presentation, not part of this plan; they are t
 
 ## `--color-only` interactive diff filter
 
-Graduated to its own plan: [`04-color-only-diff-filter.md`](./04-color-only-diff-filter.md). It is a separate diff-rendering path (line-for-line colorization for `git add -p`), not part of the v2 view/tree milestone, so it tracks independently.
+Graduated to its own plan: [`03-color-only-diff-filter.md`](./03-color-only-diff-filter.md). It is a separate diff-rendering path (line-for-line colorization for `git add -p`), not part of the v2 view/tree milestone, so it tracks independently.

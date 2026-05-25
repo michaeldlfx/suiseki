@@ -1,6 +1,6 @@
 # suiseki — `--color-only` interactive diff filter
 
-> Companion plan to [`00-building-suiseki.md`](./00-building-suiseki.md). A post-v2 enhancement to the diff path, graduated out of [`02-extending-suiseki.md`](./02-extending-suiseki.md). It is independent of the v2 `view`/`tree` milestone and of the public launch (`03-making-suiseki-public.md`), so it can be picked up whenever it earns priority.
+> Companion plan to [`00-building-suiseki.md`](./00-building-suiseki.md). A post-v2 enhancement to the diff path, graduated out of [`02-extending-suiseki.md`](./02-extending-suiseki.md). It is independent of the v2 `view`/`tree` milestone and of the public launch (`04-making-suiseki-public.md`), so it can be picked up whenever it earns priority.
 
 **Goal:** support Git's `interactive.diffFilter` (`git add -p`, `git reset -p`, etc.) with a line-preserving colorizer, so suiseki can color interactive hunk selection without breaking it.
 
