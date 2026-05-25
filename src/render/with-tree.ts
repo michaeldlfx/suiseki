@@ -7,8 +7,26 @@ import { buildTree, type GitStatusState, renderTreeLines } from "./tree"
 // Below this terminal width the side-by-side layout is too cramped; callers fall
 // back to the plain file view.
 export const MIN_WIDTH_FOR_TREE = 100
-const TREE_COLUMN_MAX_WIDTH = 40
 const SEPARATOR = " │ "
+
+type TreeLayout = { fileColumnWidth: number; treeColumnWidth: number }
+
+// Splits the available width (terminal minus the separator) between the two
+// columns. The file is the main content, so it always keeps at least half: the
+// tree never takes more than half the available width, and within that it takes
+// only what its widest line needs. So the file is never narrowed to fit the
+// tree, and tree names are only truncated when the tree itself exceeds its half.
+export function computeTreeLayout(params: {
+  terminalWidth: number
+  widestTreeLine: number
+}): TreeLayout {
+  const available = Math.max(params.terminalWidth - SEPARATOR.length, 2)
+  const treeColumnWidth = Math.min(
+    params.widestTreeLine,
+    Math.floor(available / 2),
+  )
+  return { treeColumnWidth, fileColumnWidth: available - treeColumnWidth }
+}
 
 type RenderWithTreeParams = {
   configuration: SuisekiConfig
@@ -58,14 +76,14 @@ export async function renderWithTreeLines({
     showIcons,
   })
 
-  const treeColumnWidth = Math.min(
-    treeLines.reduce((widest, line) => Math.max(widest, visibleWidth(line)), 0),
-    TREE_COLUMN_MAX_WIDTH,
+  const widestTreeLine = treeLines.reduce(
+    (widest, line) => Math.max(widest, visibleWidth(line)),
+    0,
   )
-  const fileColumnWidth = Math.max(
-    context.terminalWidth - treeColumnWidth - SEPARATOR.length,
-    1,
-  )
+  const { fileColumnWidth, treeColumnWidth } = computeTreeLayout({
+    terminalWidth: context.terminalWidth,
+    widestTreeLine,
+  })
   const separator = emitStyledText({
     text: SEPARATOR,
     foregroundColor: context.palette.separatorForeground,
