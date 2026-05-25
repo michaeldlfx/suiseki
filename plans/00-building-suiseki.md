@@ -7,8 +7,8 @@
 A modern terminal renderer for code, built on Pierre's parsing logic and Shiki's syntax/theme system. Phases:
 
 - [x] **v0** — unified-view diff renderer that works locally. Couple of hours.
-- [ ] **v1** — practical terminal diff renderer. Split view, inline word diff, themes, pager integration, binaries on GH Releases. Real release. *(features done; release engineering in `01-publishing-suiseki.md` outstanding. Public-facing README polish — screenshots, peer comparison, theme gallery, install docs — moved to `03-making-suiseki-public.md`.)*
-- [ ] **v2** — expand beyond diffs to file viewing (`cat`/`bat` alternative — maybe we suggest aliasing as `sat` (s for `suiseki`, at to mirror `cat`/`bat`)? or provide that out of the box?) and static tree printing. "Pierre's renderer, in your terminal." *(tracked in `02-extending-suiseki.md`)*
+- [x] **v1** — practical terminal diff renderer. Split view, inline word diff, themes, pager integration, binaries on GH Releases. Real release. *(features and release engineering shipped: v0.1.x on GH Releases, Homebrew, install script, `suiseki upgrade`, smoke-tested binaries. Public-facing README polish — screenshots, theme gallery, launch presentation — tracked in `03-making-suiseki-public.md`, which rides on top of v1 and does not gate it.)*
+- [x] **v2** — expand beyond diffs to file viewing and static tree printing, shipped as `suiseki view` and the `sat` symlink (s for `suiseki`, `at` to mirror `cat`/`bat`), with the `--with-tree` sidebar. "Pierre's renderer, in your terminal." *(tracked in `02-extending-suiseki.md`. The `--color-only` interactive diff filter graduated to `04-color-only-diff-filter.md` as a separate post-v2 enhancement.)*
 
 ## Progress tracking
 
@@ -22,7 +22,7 @@ Use this file as the durable cross-session source of truth.
 - Keep the parent phase unchecked until all of its child items are implemented, verified, and committed.
 - If a plan item changes scope, update the unchecked text before implementing rather than checking an obsolete item.
 - For handoff across sessions, leave the next unchecked item obvious and avoid relying on chat history.
-- The roadmap spans four files: `00-building-suiseki.md` (this file — v0/v1 features, project-wide architecture and out-of-scope), `01-publishing-suiseki.md` (v1 perf pass + release engineering: binaries, GH Releases, Homebrew, install script, npm decision), `02-extending-suiseki.md` (v2 work — `view`, `tree`, subcommand router, v2 README update), and `03-making-suiseki-public.md` (public-facing README polish + launch presentation: screenshots, peer comparison, theme gallery, install docs). Treat each file as the authoritative checklist for its own scope.
+- The roadmap spans five files: `00-building-suiseki.md` (this file — v0/v1 features, project-wide architecture and out-of-scope), `01-publishing-suiseki.md` (v1 perf pass + release engineering: binaries, GH Releases, Homebrew, install script, npm decision), `02-extending-suiseki.md` (v2 work — `view`, `tree`, subcommand router, v2 README update), `03-making-suiseki-public.md` (public-facing README polish + launch presentation: screenshots, theme gallery, install docs), and `04-color-only-diff-filter.md` (the interactive `--color-only` diff filter, a post-v2 enhancement). Treat each file as the authoritative checklist for its own scope.
 - When working in `01-` or `02-`, edit those files for the in-progress checkboxes, **and** when you complete a milestone that satisfies a high-level phase bullet at the top of this file (the v0/v1/v2 list in [§ Pitch](#pitch)), come back here to check it off in the same commit. v1 stays unchecked until all v1 features and `01-publishing-suiseki.md` are done. The public launch polish in `03-making-suiseki-public.md` rides on top of v1 and depends on `01` shipping installable binaries first. v2 stays unchecked until `02-extending-suiseki.md` is done.
 
 ## The name
