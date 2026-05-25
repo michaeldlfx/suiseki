@@ -25,8 +25,8 @@ your `PATH`, and creates a default config at `~/.suiseki/config.toml` (the same
 end state as `make init`). Override the directory with `SUISEKI_INSTALL_DIR`, or
 pin a version with `SUISEKI_VERSION=0.1.0`.
 
-macOS (x64 and arm64) and Linux (x64 and arm64, glibc and musl) are supported.
-On Windows, download `suiseki-windows-x64.exe` from the releases page.
+macOS (x64 and arm64) and Linux (x64 and arm64, glibc) are supported. On
+Windows, download `suiseki-windows-x64.exe` from the releases page.
 
 ### Install with Homebrew
 
@@ -243,10 +243,11 @@ Run `make` or `make help` to see all available targets:
 Releases are CI-only. Every PR into `main` carries exactly one semver label,
 `patch`, `minor`, or `major`. The `release guard` check enforces that label and
 forbids hand-editing the `package.json` version (the label drives the bump). On
-merge, `auto-release.yaml` bumps the version in `package.json` (the git tag is
-always `v<version>`), tags it, and calls `release.yaml` to build all binaries and
-publish the GitHub Release with checksums. There is no manual release path:
-pushing a tag by hand publishes nothing.
+push to `main`, `main-branch-workflow.yaml` runs one pipeline: **build and
+verify** (checks + tests + build) → **plan** (read the merged PR's label) →
+**tag** (bump `package.json`, tag `v<version>`, push) → **publish** (build all
+targets, create the GitHub Release with checksums). The release stages run only
+when the commit's PR carried a semver label, so direct pushes are just verified.
 
 ## Tech Stack
 
