@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import assert from "node:assert"
 import { stripAnsi } from "../ansi"
 import type { ThemePalette } from "../theme-palette"
 import { buildTree, type GitStatusState, renderTreeLines } from "./tree"
@@ -63,6 +64,15 @@ describe("tree.ts", () => {
         "apple.ts",
         "Zebra.ts",
       ])
+    })
+
+    test("treats a trailing-slash path as a directory with no children", () => {
+      const root = buildTree(["src/file.ts", "scripts/"])
+      const scripts = root.children.find((child) => child.name === "scripts")
+
+      assert(scripts != null, "scripts directory should exist")
+      expect(scripts.isDirectory).toEqual(true)
+      expect(scripts.children).toEqual([])
     })
   })
 
