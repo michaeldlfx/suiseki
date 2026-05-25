@@ -286,6 +286,12 @@ async function emitFileWithTree({
     repoContext: sidebarContext,
     treeRoot: sidebarRoot,
   })
+  // The viewed file should always appear in its own sidebar, even when path
+  // collection would omit it (gitignored without `--all`, or a dotfile in a
+  // non-repo walk) — otherwise the tree lacks the very file shown on the right.
+  if (!paths.includes(highlightPath)) {
+    paths.push(highlightPath)
+  }
   const gitStatusState = gitStatus
     ? await loadGitStatus({ includeIgnored: all, repoContext: sidebarContext })
     : null
@@ -336,7 +342,9 @@ async function emitFileView({
   const usePager = !noPager && process.stdout.isTTY === true
 
   // The pager needs the whole render up front; the plain stdout path streams
-  // per line so `sat huge.log | head` can stop early and peak memory stays low.
+  // per line so `sat huge.log | head` can stop early, skipping tokenization of
+  // the lines it never reads (the dominant cost). The file itself is already in
+  // memory by this point, so this saves render time, not peak memory.
   if (usePager) {
     const rendered = await renderFileView({
       configuration,
