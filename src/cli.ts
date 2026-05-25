@@ -1,17 +1,31 @@
+import { stat } from "node:fs/promises"
+import { basename, dirname, relative, resolve } from "node:path"
 import { createInterface } from "node:readline"
 import { stripAnsi } from "./ansi"
 import { parseCliOptions } from "./cli-options"
-import { loadConfig, readSuisekiEnv } from "./config"
+import { loadConfig, readSuisekiEnv, type SuisekiConfig } from "./config"
 import { runConfigCommand } from "./config-command"
 import { getDefaultConfigPath, runInitCommandWithIO } from "./init-command"
 import { renderDiff, streamDiffBlocks } from "./render/diff"
+import { renderFileView, streamFileViewLines } from "./render/file"
+import { getTerminalWidth, prepareRenderContext } from "./render/highlight"
 import {
   containsMergeConflictMarkers,
   renderMergeConflictFile,
 } from "./render/merge-conflict"
+import { buildTree, renderTreeLines } from "./render/tree"
+import { MIN_WIDTH_FOR_TREE, renderWithTreeLines } from "./render/with-tree"
 import { runThemesCommand } from "./themes-command"
+import {
+  collectTreePaths,
+  loadGitStatus,
+  type RepoContext,
+  resolveRepoContext,
+} from "./tree-source"
 import { runUpgradeCommand } from "./upgrade-io"
+import { getAncestorDirectoryPaths } from "./vendor/pierre/path-helpers"
 import { version } from "./version"
+import { classifyViewTarget } from "./view-target"
 
 class CliError extends Error {
   override name = "CliError"
@@ -25,6 +39,15 @@ class CliError extends Error {
 }
 
 async function main(): Promise<void> {
+  // Invoked through the `sat` symlink (busybox-style): the binary becomes the
+  // file/tree viewer, i.e. exactly `suiseki view`. `process.argv0` preserves the
+  // invocation name even though a compiled Bun binary resolves the symlink for
+  // argv[0]/execPath.
+  if (basename(process.argv0) === "sat") {
+    await runViewCommand(process.argv.slice(2))
+    return
+  }
+
   if (process.argv[2] === "themes") {
     await runThemesCommand()
     return
@@ -49,6 +72,11 @@ async function main(): Promise<void> {
         `Unknown argument for 'config': ${configArgument}. Did you mean 'config --init'?`,
       )
     }
+    return
+  }
+
+  if (process.argv[2] === "view") {
+    await runViewCommand(process.argv.slice(3))
     return
   }
 
@@ -104,14 +132,23 @@ async function main(): Promise<void> {
     return
   }
 
+  await streamBlocksToStdout(streamDiffBlocks(patch, configuration), noColor)
+}
+
+// Writes rendered blocks to stdout one at a time, joining them with "\n" and
+// applying backpressure between blocks so a slow or short-lived consumer can't
+// force us to buffer the whole render. Stops early (without error) when the
+// consumer closes the pipe — a clean exit for a Unix filter like `... | head`.
+async function streamBlocksToStdout(
+  blocks: AsyncIterable<string>,
+  noColor: boolean,
+): Promise<void> {
   let wroteAnyBlock = false
-  for await (const block of streamDiffBlocks(patch, configuration)) {
+  for await (const block of blocks) {
     const renderedBlock = noColor ? stripAnsi(block) : block
     const pipeOpen = await writeToStdout(
       wroteAnyBlock ? `\n${renderedBlock}` : renderedBlock,
     )
-    // The consumer closed the pipe (e.g. `suiseki | head`). Stop rendering
-    // blocks nobody will read rather than churning through a large diff.
     if (!pipeOpen) {
       return
     }
@@ -119,6 +156,361 @@ async function main(): Promise<void> {
   }
   if (wroteAnyBlock) {
     await writeToStdout("\n")
+  }
+}
+
+type ViewInput =
+  | { kind: "text"; content: string; fileName: string }
+  | { kind: "binary"; fileName: string }
+
+// The single entry point behind `suiseki view` and the `sat` symlink. It is
+// polymorphic: a file path shows content, a directory path shows its tree, and
+// stdin is read when piped or for "-".
+async function runViewCommand(viewArguments: string[]): Promise<void> {
+  const { all, gitStatus, icons, rest, withTree } =
+    extractViewFlags(viewArguments)
+  const parsedOptions = parseCliOptions(rest)
+  if (parsedOptions.version) {
+    process.stdout.write(`suiseki ${version}\n`)
+    return
+  }
+  if (parsedOptions.help) {
+    process.stdout.write(`${getViewHelpText()}\n`)
+    return
+  }
+
+  const suisekiEnv = readSuisekiEnv()
+  const noPager = parsedOptions.noPager || suisekiEnv.SUISEKI_NO_PAGER === true
+  const noColor = parsedOptions.noColor || (Bun.env.NO_COLOR ?? "") !== ""
+  const configuration = await loadConfig({
+    overrides: parsedOptions.overrides,
+    suisekiEnv,
+  })
+
+  const pathArgument = parsedOptions.gitArguments[0]
+  const target = await classifyViewTargetFromPath(pathArgument)
+
+  if (target === "missing") {
+    throw new CliError(`No such file or directory: ${pathArgument}`)
+  }
+
+  if (target === "tree") {
+    await emitTree({
+      all,
+      configuration,
+      gitStatus,
+      icons,
+      noColor,
+      noPager,
+      treeRoot: pathArgument ?? ".",
+    })
+    return
+  }
+
+  const input = await readFileInput({ pathArgument, target })
+  if (input.kind === "binary") {
+    process.stderr.write(`${input.fileName}: binary file — not shown\n`)
+    return
+  }
+
+  // `--with-tree` (or `[view].with-tree`) shows the file beside its directory
+  // tree. It needs a real file path to locate and highlight, and enough width;
+  // otherwise fall back to the plain file view.
+  const withTreeEnabled = withTree ?? configuration.view["with-tree"]
+  if (
+    withTreeEnabled &&
+    input.fileName !== "" &&
+    getTerminalWidth() >= MIN_WIDTH_FOR_TREE
+  ) {
+    await emitFileWithTree({
+      all,
+      configuration,
+      gitStatus,
+      icons,
+      input,
+      noColor,
+      noPager,
+    })
+    return
+  }
+
+  await emitFileView({ configuration, input, noColor, noPager })
+}
+
+type EmitFileWithTreeParams = {
+  all: boolean
+  configuration: SuisekiConfig
+  gitStatus: boolean
+  icons: boolean
+  input: { content: string; fileName: string }
+  noColor: boolean
+  noPager: boolean
+}
+
+async function emitFileWithTree({
+  all,
+  configuration,
+  gitStatus,
+  icons,
+  input,
+  noColor,
+  noPager,
+}: EmitFileWithTreeParams): Promise<void> {
+  // Root the sidebar at the project (repo root, or cwd outside a repo) and
+  // reveal just the path to the file: expand its ancestor directories, collapse
+  // the rest. A repo-root sidebar context always has an empty subPrefix.
+  const fileAbsolute = resolve(input.fileName)
+  const fileDirectory = dirname(fileAbsolute)
+  const fileDirContext = await resolveRepoContext(fileDirectory)
+  let sidebarRoot = fileDirContext?.repoRoot ?? process.cwd()
+  let sidebarContext: RepoContext | null =
+    fileDirContext == null
+      ? null
+      : { repoRoot: fileDirContext.repoRoot, subPrefix: "" }
+  let highlightPath = relative(sidebarRoot, fileAbsolute)
+
+  // The file sits outside the project root (e.g. an absolute path elsewhere):
+  // root the sidebar at the file's own directory so it still appears.
+  if (highlightPath.startsWith("..")) {
+    sidebarRoot = fileDirectory
+    sidebarContext = fileDirContext
+    highlightPath = basename(fileAbsolute)
+  }
+  const rootLabel = basename(sidebarRoot) || sidebarRoot
+
+  const paths = await collectTreePaths({
+    all,
+    repoContext: sidebarContext,
+    treeRoot: sidebarRoot,
+  })
+  const gitStatusState = gitStatus
+    ? await loadGitStatus({ includeIgnored: all, repoContext: sidebarContext })
+    : null
+  const lines = await renderWithTreeLines({
+    configuration,
+    content: input.content,
+    expandedDirectories: new Set(getAncestorDirectoryPaths(highlightPath)),
+    fileName: input.fileName,
+    gitStatus: gitStatusState,
+    highlightPath,
+    paths,
+    rootLabel,
+    showIcons: icons,
+  })
+
+  await emitLines({ lines, noColor, noPager })
+}
+
+async function classifyViewTargetFromPath(
+  pathArgument: string | undefined,
+): Promise<ReturnType<typeof classifyViewTarget>> {
+  const stats =
+    pathArgument != null && pathArgument !== "-"
+      ? await stat(pathArgument).catch(() => null)
+      : null
+  return classifyViewTarget({
+    exists: stats != null,
+    isDirectory: stats?.isDirectory() === true,
+    isStdinTty: process.stdin.isTTY === true,
+    pathArgument,
+  })
+}
+
+type EmitFileViewParams = {
+  configuration: SuisekiConfig
+  input: { content: string; fileName: string }
+  noColor: boolean
+  noPager: boolean
+}
+
+async function emitFileView({
+  configuration,
+  input,
+  noColor,
+  noPager,
+}: EmitFileViewParams): Promise<void> {
+  const usePager = !noPager && process.stdout.isTTY === true
+
+  // The pager needs the whole render up front; the plain stdout path streams
+  // per line so `sat huge.log | head` can stop early and peak memory stays low.
+  if (usePager) {
+    const rendered = await renderFileView({
+      configuration,
+      content: input.content,
+      fileName: input.fileName,
+    })
+    if (rendered === "") {
+      return
+    }
+    await writeWithPager(`${noColor ? stripAnsi(rendered) : rendered}\n`)
+    return
+  }
+
+  await streamBlocksToStdout(
+    streamFileViewLines({
+      configuration,
+      content: input.content,
+      fileName: input.fileName,
+    }),
+    noColor,
+  )
+}
+
+type ReadFileInputParams = {
+  pathArgument: string | undefined
+  target: "file" | "stdin"
+}
+
+async function readFileInput({
+  pathArgument,
+  target,
+}: ReadFileInputParams): Promise<ViewInput> {
+  if (target === "stdin") {
+    return { kind: "text", content: await Bun.stdin.text(), fileName: "" }
+  }
+
+  const filePath = pathArgument as string
+  const bytes = await Bun.file(filePath).bytes()
+  if (isBinaryContent(bytes)) {
+    return { kind: "binary", fileName: filePath }
+  }
+
+  return {
+    kind: "text",
+    content: new TextDecoder().decode(bytes),
+    fileName: filePath,
+  }
+}
+
+// A NUL byte in the leading bytes is the same heuristic git and bat use to
+// classify a file as binary. Sampling the head keeps this cheap on large files.
+function isBinaryContent(bytes: Uint8Array): boolean {
+  const sampleLength = Math.min(bytes.length, 8000)
+  for (let index = 0; index < sampleLength; index++) {
+    if (bytes[index] === 0) {
+      return true
+    }
+  }
+  return false
+}
+
+type ViewFlags = {
+  all: boolean
+  gitStatus: boolean
+  icons: boolean
+  rest: string[]
+  // undefined when neither --with-tree nor --with-tree=<bool> was given, so the
+  // config default ([view].with-tree) decides.
+  withTree: boolean | undefined
+}
+
+function extractViewFlags(viewArguments: string[]): ViewFlags {
+  let all = false
+  let gitStatus = true
+  let icons = true
+  let withTree: boolean | undefined
+  const rest: string[] = []
+
+  for (const argument of viewArguments) {
+    if (argument === "--all" || argument === "-a") {
+      all = true
+    } else if (argument === "--git-status") {
+      gitStatus = true
+    } else if (argument === "--no-git-status") {
+      gitStatus = false
+    } else if (argument === "--icons") {
+      icons = true
+    } else if (argument === "--no-icons") {
+      icons = false
+    } else if (argument === "--with-tree" || argument === "-t") {
+      withTree = true
+    } else if (argument.startsWith("--with-tree=")) {
+      withTree = parseBooleanFlagValue(
+        "--with-tree",
+        argument.slice("--with-tree=".length),
+      )
+    } else {
+      rest.push(argument)
+    }
+  }
+
+  return { all, gitStatus, icons, rest, withTree }
+}
+
+function parseBooleanFlagValue(flag: string, rawValue: string): boolean {
+  if (rawValue === "true") {
+    return true
+  }
+  if (rawValue === "false") {
+    return false
+  }
+  throw new CliError(`${flag} must be true or false`)
+}
+
+type EmitTreeParams = {
+  all: boolean
+  configuration: SuisekiConfig
+  gitStatus: boolean
+  icons: boolean
+  noColor: boolean
+  noPager: boolean
+  treeRoot: string
+}
+
+async function emitTree({
+  all,
+  configuration,
+  gitStatus,
+  icons,
+  noColor,
+  noPager,
+  treeRoot,
+}: EmitTreeParams): Promise<void> {
+  const repoContext = await resolveRepoContext(treeRoot)
+  const paths = await collectTreePaths({ all, repoContext, treeRoot })
+  const gitStatusState = gitStatus
+    ? await loadGitStatus({ includeIgnored: all, repoContext })
+    : null
+  const context = await prepareRenderContext(configuration)
+  const lines = renderTreeLines({
+    gitStatus: gitStatusState,
+    palette: context.palette,
+    root: buildTree(paths),
+    rootLabel: treeRoot,
+    showIcons: icons,
+  })
+
+  await emitLines({ lines, noColor, noPager })
+}
+
+type EmitLinesParams = {
+  lines: string[]
+  noColor: boolean
+  noPager: boolean
+}
+
+async function emitLines({
+  lines,
+  noColor,
+  noPager,
+}: EmitLinesParams): Promise<void> {
+  const usePager = !noPager && process.stdout.isTTY === true
+
+  if (usePager) {
+    if (lines.length === 0) {
+      return
+    }
+    const output = `${lines.join("\n")}\n`
+    await writeWithPager(noColor ? stripAnsi(output) : output)
+    return
+  }
+
+  await streamBlocksToStdout(iterateLines(lines), noColor)
+}
+
+async function* iterateLines(lines: string[]): AsyncGenerator<string> {
+  for (const line of lines) {
+    yield line
   }
 }
 
@@ -168,6 +560,8 @@ function getHelpText(): string {
     "Usage:",
     "  git diff | suiseki",
     "  suiseki [options] [git-diff-args...]",
+    "  suiseki view <file|dir>     Highlight a file, or tree a directory",
+    "  sat <file|dir>              Symlink for view (cat/bat/tree alternative)",
     "  suiseki themes              List available themes",
     "  suiseki config              Print full config reference as annotated TOML",
     "  suiseki config --init       Create ~/.suiseki/config.toml",
@@ -200,6 +594,38 @@ function getHelpText(): string {
     "More:",
     "  Run 'suiseki config' for the full config reference.",
     "  Docs: https://github.com/michaeldlfx/suiseki#readme",
+  ].join("\n")
+}
+
+function getViewHelpText(): string {
+  return [
+    "suiseki view - show a file's contents, or a directory's tree",
+    "(also available as the `sat` symlink; a cat/bat/tree alternative)",
+    "",
+    "Usage:",
+    "  suiseki view <file>       Syntax-highlight a file",
+    "  suiseki view <dir>        Print the directory tree",
+    "  suiseki view -            Read file content from stdin",
+    "  cat file | suiseki view",
+    "  sat <file|dir>            Same, via the sat symlink",
+    "",
+    "File options:",
+    "  --with-tree, -t  Show the file beside its directory tree",
+    "                   (--with-tree=false to override a config default)",
+    "  --line-numbers / --no-line-numbers",
+    "  --file-header / --no-file-header",
+    "  --max-line-length <number>",
+    "  --max-file-lines <number>",
+    "",
+    "Tree options (when the argument is a directory):",
+    "  --all, -a        Include dotfiles and gitignored entries",
+    "  --no-icons       Hide directory glyphs (shown by default)",
+    "  --no-git-status  Hide the git status column (on by default in a repo)",
+    "",
+    "Common options:",
+    "  --theme <name>",
+    "  --no-pager",
+    "  --no-color   (also honors NO_COLOR env var)",
   ].join("\n")
 }
 
