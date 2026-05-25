@@ -6,6 +6,7 @@ export const vParsedCliOptions = type({
   gitArguments: "string[]",
   help: "boolean",
   version: "boolean",
+  colorOnly: "boolean",
   noColor: "boolean",
   noPager: "boolean",
   overrides: vCliConfigOverrides,
@@ -62,6 +63,7 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
     gitArguments: [],
     help: false,
     version: false,
+    colorOnly: false,
     noColor: false,
     noPager: false,
     overrides: {},
@@ -87,6 +89,11 @@ export function parseCliOptions(argumentsFromCli: string[]): ParsedCliOptions {
 
     if (argument === "--no-pager") {
       parsedOptions.noPager = true
+      continue
+    }
+
+    if (argument === "--color-only") {
+      parsedOptions.colorOnly = true
       continue
     }
 

@@ -15,6 +15,7 @@ import {
 } from "./config"
 import { runConfigCommand } from "./config-command"
 import { getDefaultConfigPath, runInitCommandWithIO } from "./init-command"
+import { renderColorOnly } from "./render/color-only"
 import { renderDiff, streamDiffBlocks } from "./render/diff"
 import { renderFileView, streamFileViewLines } from "./render/file"
 import { getTerminalWidth, prepareRenderContext } from "./render/highlight"
@@ -120,6 +121,19 @@ async function main(): Promise<void> {
   }
 
   const noColor = parsedOptions.noColor || (Bun.env.NO_COLOR ?? "") !== ""
+
+  // The line-preserving colorizer for `interactive.diffFilter` runs before the
+  // pager and merge-conflict paths: those reshape the diff, which would break
+  // the line-for-line mapping the interactive UI depends on. It is a pure
+  // filter, so it always writes straight to stdout (no pager).
+  if (parsedOptions.colorOnly) {
+    const renderedColorOnly = await renderColorOnly(patch, configuration)
+    await writeToStdout(
+      noColor ? stripAnsi(renderedColorOnly) : renderedColorOnly,
+    )
+    return
+  }
+
   const usePager = !noPager && process.stdout.isTTY === true
   const isMergeConflict = containsMergeConflictMarkers(patch)
 
@@ -689,6 +703,7 @@ function getHelpText(): string {
     "Git setup:",
     "  git config --global pager.diff 'suiseki'",
     "  git config --global pager.show 'suiseki'",
+    "  git config --global interactive.diffFilter 'suiseki --color-only'",
     "",
     "Options:",
     "  --view <unified|split>",
@@ -704,6 +719,7 @@ function getHelpText(): string {
     "  --max-file-lines <number>",
     "  --no-pager",
     "  --no-color   (also honors NO_COLOR env var)",
+    "  --color-only Colorize a diff line-for-line (for interactive.diffFilter)",
     "  --version    Print the suiseki version",
     "",
     "More:",
