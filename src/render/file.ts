@@ -1,4 +1,4 @@
-import { emitStyledText } from "../ansi"
+import { emitStyledText, visibleWidth } from "../ansi"
 import type { SuisekiConfig } from "../config"
 import { renderGutter } from "../gutter"
 import type { ThemePalette } from "../theme-palette"
@@ -206,9 +206,9 @@ function emitFileHeader({
     .filter((part) => part != null)
     .join("  ")
 
-  const nameVisibleLength = directory.length + name.length
+  const nameVisibleLength = visibleWidth(directory) + visibleWidth(name)
   const paddingLength = Math.max(
-    terminalWidth - nameVisibleLength - metaText.length,
+    terminalWidth - nameVisibleLength - visibleWidth(metaText),
     2,
   )
 
