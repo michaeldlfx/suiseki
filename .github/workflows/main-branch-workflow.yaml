@@ -8,8 +8,7 @@ name: main branch workflow
 #
 # Push-triggered (not pull_request) so direct pushes are still verified and the
 # whole thing is one run. The release stages only fire when the commit's PR
-# carries a semver label. The bump commit/tag are pushed with GITHUB_TOKEN, which
-# does not re-trigger this workflow, so there is no release loop.
+# carries a semver label.
 
 on:
   push:
@@ -98,6 +97,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: main
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: setup bun
         uses: oven-sh/setup-bun@v2
@@ -164,3 +164,15 @@ jobs:
             --title "$TAG" \
             --generate-notes \
             --verify-tag
+
+  update-tap:
+    name: update homebrew tap
+    needs: [tag, publish]
+    runs-on: ubuntu-latest
+    steps:
+      - name: trigger homebrew formula update
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          gh workflow run update-formula --repo michaeldlfx/homebrew-suiseki
+          echo "Dispatched homebrew-suiseki formula update for ${{ needs.tag.outputs.tag }}."
