@@ -31,7 +31,7 @@ needed. Override it with `SUISEKI_INSTALL_DIR`, or pin a version with
 `SUISEKI_VERSION=0.1.0`.
 
 macOS (x64 and arm64) and Linux (x64 and arm64, glibc) are supported. On
-Windows, download `suiseki-windows-x64.exe` from the releases page.
+Windows, download `suiseki-windows-x64.exe` from the [releases page](https://github.com/michaeldlfx/suiseki/releases).
 
 ### Install with Homebrew
 
@@ -67,7 +67,7 @@ If you installed a prebuilt binary, update in place:
 suiseki upgrade
 ```
 
-It checks GitHub Releases for a newer version, downloads the binary for your
+It checks [GitHub Releases](https://github.com/michaeldlfx/suiseki/releases) for a newer version, downloads the binary for your
 platform, verifies its checksum, and replaces the running executable.
 
 ### Wire up Git
