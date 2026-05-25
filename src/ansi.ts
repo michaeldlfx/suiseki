@@ -78,6 +78,49 @@ export function stripAnsi(value: string): string {
   return value.replace(ANSI_ESCAPE_PATTERN, "")
 }
 
+export function visibleWidth(value: string): number {
+  return stripAnsi(value).length
+}
+
+// Fit an ANSI string to a target visible width for a fixed-width column: copy
+// SGR escapes without counting them, truncate when the visible budget runs out
+// (closing with a reset), and optionally pad short lines with trailing spaces.
+export function fitToWidth(value: string, width: number, pad = true): string {
+  let visible = 0
+  let result = ""
+  let index = 0
+  let truncated = false
+
+  while (index < value.length) {
+    if (value[index] === ANSI_ESCAPE && value[index + 1] === "[") {
+      const escapeEnd = value.indexOf("m", index)
+      if (escapeEnd === -1) {
+        result += value.slice(index)
+        break
+      }
+      result += value.slice(index, escapeEnd + 1)
+      index = escapeEnd + 1
+      continue
+    }
+
+    if (visible >= width) {
+      truncated = true
+      break
+    }
+    result += value[index]
+    visible++
+    index++
+  }
+
+  if (truncated) {
+    result += RESET
+  }
+  if (pad && visible < width) {
+    result += " ".repeat(width - visible)
+  }
+  return result
+}
+
 function createAnsiStyle({
   backgroundColor,
   bold,
