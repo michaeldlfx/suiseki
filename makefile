@@ -2,7 +2,7 @@
 
 BINARY := bin/suiseki
 
-.PHONY: help install install-frozen run build release start clean test check check-ci format setup init
+.PHONY: help install install-frozen run build release start clean test check check-ci format link setup init
 
 help: ## show this help
 	@echo "usage: make <target>"
@@ -33,12 +33,14 @@ start: ## run build binary
 clean: ## remove build artifacts, release output, and coverage
 	bun run clean
 
-setup: build ## register suiseki + sat on PATH and create default config (~/.suiseki/config.toml)
-	@chmod +x scripts/setup-path.sh && scripts/setup-path.sh "$(CURDIR)/bin"
+link: build ## (re)create the local bin/sat -> suiseki symlink
 	@ln -sf suiseki "$(CURDIR)/bin/sat" && echo "linked sat -> suiseki view ($(CURDIR)/bin/sat)"
+
+setup: link ## register suiseki + sat on PATH and create default config (~/.suiseki/config.toml)
+	@chmod +x scripts/setup-path.sh && scripts/setup-path.sh "$(CURDIR)/bin"
 	@./$(BINARY) config --init
 
-init: install build setup ## first-time setup: install deps, build binary, configure shell
+init: install setup ## first-time setup: install deps, build binary, configure shell
 
 # code quality
 test: ## run all tests with coverage
