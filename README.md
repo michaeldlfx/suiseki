@@ -170,8 +170,11 @@ outside one. Directories are marked with a `▾` glyph, and a git-status column
 (added, modified, deleted, renamed, untracked) sits on the left, rolled up to
 parent directories. The tree and viewer flags:
 
-- `--all` / `-a`: include dotfiles and gitignored entries. **On by default**
-  (`[view].all`); pass `--all=false`, or set `[view].all = false`, to hide them.
+- `--gitignored=<hidden|collapsed|expanded>`: how gitignored dirs (`node_modules`,
+  `dist`) appear. Default **collapsed** (`[view].gitignored`): shown as a single
+  `▸ node_modules/` entry, not drilled into. `hidden` omits them, `expanded` shows
+  them in full. `sat <ignored-dir>` always shows that directory's own contents.
+- `--hidden` / `--no-hidden`: show or hide dotfiles. On by default (`[view].hidden`).
 - `--no-icons`: hide the `▾` directory glyphs.
 - `--no-git-status`: hide the git-status column.
 - `--with-tree` / `-t`: show a file beside its directory tree. This is **on by
@@ -234,7 +237,8 @@ max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
 max-file-lines = 10000       # SUISEKI_SHIKI_MAX_FILE_LINES
 
 [view]
-all = true                   # SUISEKI_VIEW_ALL (sat/view: show dotfiles and gitignored entries)
+gitignored = "collapsed"     # SUISEKI_VIEW_GITIGNORED (hidden | collapsed | expanded)
+hidden = true                # SUISEKI_VIEW_HIDDEN (show dotfiles)
 with-tree = true             # SUISEKI_VIEW_WITH_TREE (sat/view: show the directory tree beside the file)
 with-tree-side = "left"      # SUISEKI_VIEW_WITH_TREE_SIDE (which side the tree sits on: left | right)
 ```
