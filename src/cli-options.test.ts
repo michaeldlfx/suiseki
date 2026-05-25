@@ -121,5 +121,19 @@ describe("cli-options.ts", () => {
         "Invalid CLI option",
       )
     })
+
+    test("parses --color-only and leaves git arguments untouched", () => {
+      const parsedOptions = parseCliOptions(["--color-only"])
+
+      expect(parsedOptions.colorOnly).toEqual(true)
+      expect(parsedOptions.gitArguments).toEqual([])
+    })
+
+    test("defaults colorOnly to false when --color-only absent", () => {
+      const parsedOptions = parseCliOptions(["HEAD~1"])
+
+      expect(parsedOptions.colorOnly).toEqual(false)
+      expect(parsedOptions.gitArguments).toEqual(["HEAD~1"])
+    })
   })
 })

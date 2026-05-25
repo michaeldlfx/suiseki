@@ -12,7 +12,7 @@ The `--color-only` advertisement (README, help text, and a no-op parser flag) wa
 
 ## Features
 
-- [ ] **New module `src/render/color-only.ts`** — separate rendering path. Walks
+- [x] **New module `src/render/color-only.ts`** — separate rendering path. Walks
       the raw diff input line by line, classifies each line, and emits the
       same line with ANSI codes added:
    - File header lines (`diff --git`, `index`, `---`, `+++`): metadata color, unchanged content.
@@ -20,17 +20,19 @@ The `--color-only` advertisement (README, help text, and a no-op parser flag) wa
    - Context / `+` / `-` lines: keep leading `+`/`-`/` ` in place; Shiki-tokenize the rest; emit content with syntax foreground plus the diff +/- background; reset at EOL.
    - Binary / rename / mode-change headers: pass through colorized but otherwise untouched.
    - **Invariant: input line count == output line count.** No splitting long lines, no tab expansion, no trailing-whitespace normalization, no inline word-diff (word-diff inserts tokens mid-line and breaks the invariant).
-- [ ] **CLI wiring** — `--color-only` triggers the new path before the normal
+- [x] **CLI wiring** — `--color-only` triggers the new path before the normal
       `renderDiff` / `renderMergeConflictFile` branch in `src/cli.ts`. Merge
       conflict files pass through to the same line-preserving renderer (no
       special-case rendering in color-only mode).
-- [ ] **Help text + README** — add `--color-only` back to the options list and
+- [x] **Help text + README** — add `--color-only` back to the options list and
       restore the `interactive.diffFilter = suiseki --color-only` recommendation
       in both the bash and `.gitconfig` snippets.
-- [ ] **Tests `src/render/color-only.test.ts`**:
+- [x] **Tests `src/render/color-only.test.ts`**:
    - Output line count equals input line count for representative fixtures.
    - Headers / hunk markers / context / +/- lines all classified correctly.
    - ANSI strips back to the original byte content for each line.
    - Word-diff is disabled regardless of config.
-- [ ] **Manual verification** — exercise `git add -p` against a real repo with
+- [x] **Manual verification** — exercise `git add -p` against a real repo with
       `interactive.diffFilter` configured, confirm hunk selection still works.
+      Verified line-count preservation, byte-for-byte stripped equality, and
+      selective (n/y) staging mapping the right hunk through the filter.
