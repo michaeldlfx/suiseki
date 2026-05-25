@@ -41,6 +41,7 @@ function configWith(overrides: {
   return {
     pierre: { ...DEFAULT_CONFIG.pierre, ...(overrides.pierre ?? {}) },
     shiki: DEFAULT_CONFIG.shiki,
+    view: DEFAULT_CONFIG.view,
     customThemes: {},
   }
 }
