@@ -90,8 +90,6 @@ That's it. Run `git diff` and enjoy.
 
 The project is a friendly terminal surface for Pierre's renderer-agnostic packages and Shiki's syntax/theme ecosystem: `@pierre/diffs` first, `@pierre/trees` next, and Shiki throughout. It is a homage and companion, not a fork or replacement.
 
-The implementation plan lives in `plans/00-building-suiseki.md`.
-
 ## Usage
 
 ```bash
@@ -321,12 +319,6 @@ when the commit's PR carried a semver label, so direct pushes are just verified.
 - **ansis** for ANSI escape code helpers.
 - **smol-toml** for TOML config parsing.
 - **Biome** for formatting and linting.
-
-## Roadmap
-
-- **v0:** local unified-view diff renderer with Shiki highlighting, diff backgrounds, and pager support.
-- **v1:** practical terminal diff renderer with split view, inline word diff, theming, pager integration, config, and prebuilt binaries.
-- **v2:** broader terminal code viewer: `suiseki view` / `sat` for files and directory trees, with the `--with-tree` sidebar. *(current)*
 
 ## Credits
 
