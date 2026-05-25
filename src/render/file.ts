@@ -29,15 +29,23 @@ type BuildFileViewParams = {
   fileName: string
 }
 
-// Renders a file into a header line (or null) plus one styled line per source
-// line, given an already-prepared render context. Shared by the plain viewer
-// and the `--with-tree` side-by-side layout.
-export async function buildFileView({
+type FileRenderPlan = {
+  headerLine: string | null
+  language: RenderLanguage
+  lineNumberWidth: number
+  lines: string[]
+}
+
+// Resolves everything needed to render a file (split lines, language, gutter
+// width, optional header) without rendering any content line yet. Both the
+// eager `buildFileView` and the lazy `streamFileViewLines` start here so their
+// header/language/width decisions stay identical.
+async function planFileRender({
   configuration,
   content,
   context,
   fileName,
-}: BuildFileViewParams): Promise<FileView> {
+}: BuildFileViewParams): Promise<FileRenderPlan> {
   const lines = splitIntoLines(content)
   const maxFileLines = configuration.shiki["max-file-lines"]
   const exceedsFileLineLimit = lines.length > maxFileLines
@@ -61,6 +69,20 @@ export async function buildFileView({
       })
     : null
 
+  return { headerLine, language, lineNumberWidth, lines }
+}
+
+// Renders a file into a header line (or null) plus one styled line per source
+// line, given an already-prepared render context. Eager (all lines rendered up
+// front) because the `--with-tree` side-by-side layout needs every line to
+// columnize against the tree. The plain viewer uses `streamFileViewLines`.
+export async function buildFileView(
+  params: BuildFileViewParams,
+): Promise<FileView> {
+  const { configuration, context } = params
+  const { headerLine, language, lineNumberWidth, lines } =
+    await planFileRender(params)
+
   const contentLines = lines.map((line, lineIndex) =>
     renderFileLine({
       configuration,
@@ -75,28 +97,38 @@ export async function buildFileView({
   return { contentLines, headerLine }
 }
 
-// Yields the optional header block, then one rendered line per source line, so
-// a consumer can stream to stdout and stop early (e.g. `sat huge.log | head`)
-// without rendering lines nobody will read.
+// Yields the optional header block, then renders one line per source line
+// lazily: each line is tokenized only as it is yielded. So a consumer that
+// stops early (e.g. `sat huge.log | head`) never pays to render the lines it
+// skips, unlike `buildFileView` which renders the whole file up front.
 export async function* streamFileViewLines({
   configuration,
   content,
   fileName,
 }: RenderFileViewParams): AsyncGenerator<string> {
   const context = await prepareRenderContext(configuration)
-  const { contentLines, headerLine } = await buildFileView({
-    configuration,
-    content,
-    context,
-    fileName,
-  })
+  const { headerLine, language, lineNumberWidth, lines } = await planFileRender(
+    {
+      configuration,
+      content,
+      context,
+      fileName,
+    },
+  )
 
   if (headerLine != null) {
     yield headerLine
     yield ""
   }
-  for (const line of contentLines) {
-    yield line
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    yield renderFileLine({
+      configuration,
+      context,
+      language,
+      line: lines[lineIndex] ?? "",
+      lineNumber: lineIndex + 1,
+      lineNumberWidth,
+    })
   }
 }
 
