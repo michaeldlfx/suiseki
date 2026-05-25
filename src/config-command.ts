@@ -9,6 +9,7 @@ function tomlValue(value: string | number | boolean): string {
 
 const pierreDefaults = DEFAULT_CONFIG.pierre
 const shikiDefaults = DEFAULT_CONFIG.shiki
+const viewDefaults = DEFAULT_CONFIG.view
 
 export function generateAnnotatedConfig(): string {
   return [
@@ -87,6 +88,16 @@ export function generateAnnotatedConfig(): string {
     "# values: positive integer",
     "# env:    SUISEKI_SHIKI_MAX_FILE_LINES",
     `max-file-lines = ${tomlValue(shikiDefaults["max-file-lines"])}`,
+    "",
+    "[view]",
+    "",
+    "# Default `suiseki view <file>` / `sat <file>` to the side-by-side layout:",
+    "# file contents on the right, the surrounding directory tree on the left",
+    "# with the viewed file highlighted. `--with-tree` / `--no-with-tree` override",
+    "# per invocation. Falls back to file-only on terminals narrower than 100 cols.",
+    "# values: true | false",
+    "# env:    SUISEKI_VIEW_WITH_TREE",
+    `with-tree = ${tomlValue(viewDefaults["with-tree"])}`,
   ].join("\n")
 }
 

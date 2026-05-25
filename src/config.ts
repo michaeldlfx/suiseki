@@ -22,6 +22,7 @@ const vSuisekiEnv = type({
   "SUISEKI_SHIKI_THEME?": "string",
   "SUISEKI_SHIKI_MAX_LINE_LENGTH?": vPositiveIntegerString,
   "SUISEKI_SHIKI_MAX_FILE_LINES?": vPositiveIntegerString,
+  "SUISEKI_VIEW_WITH_TREE?": vStringBoolean,
   "SUISEKI_NO_PAGER?": vStringBoolean,
 })
 
@@ -61,6 +62,12 @@ const SHIKI_CONFIG_FIELDS = {
   "max-file-lines": vPositiveInteger,
 } as const
 
+// suiseki's own (non-Pierre, non-Shiki) view options. `with-tree` defaults the
+// `view`/`sat` file viewer to the side-by-side tree layout.
+const VIEW_CONFIG_FIELDS = {
+  "with-tree": "boolean",
+} as const
+
 const CLI_PIERRE_CONFIG_FIELDS = {
   ...PIERRE_CONFIG_FIELDS,
   "max-line-diff-length": vPositiveIntegerString,
@@ -74,19 +81,23 @@ const CLI_SHIKI_CONFIG_FIELDS = {
 
 export const vPierreConfig = type(PIERRE_CONFIG_FIELDS)
 export const vShikiConfig = type(SHIKI_CONFIG_FIELDS)
+export const vViewConfig = type(VIEW_CONFIG_FIELDS)
 export const vCliPierreConfig = type(CLI_PIERRE_CONFIG_FIELDS)
 export const vCliShikiConfig = type(CLI_SHIKI_CONFIG_FIELDS)
 
 export const vSuisekiConfig = type({
   pierre: vPierreConfig,
   shiki: vShikiConfig,
+  view: vViewConfig,
 })
 
 export const vPierreConfigOverrides = vPierreConfig.partial()
 export const vShikiConfigOverrides = vShikiConfig.partial()
+export const vViewConfigOverrides = vViewConfig.partial()
 export const vSuisekiConfigOverrides = type({
   "pierre?": vPierreConfigOverrides,
   "shiki?": vShikiConfigOverrides,
+  "view?": vViewConfigOverrides,
 })
 export const vCliConfigOverrides = type({
   "pierre?": vCliPierreConfig.partial(),
@@ -95,10 +106,12 @@ export const vCliConfigOverrides = type({
 
 type PierreKey = keyof typeof PIERRE_CONFIG_FIELDS
 type ShikiKey = keyof typeof SHIKI_CONFIG_FIELDS
+type ViewKey = keyof typeof VIEW_CONFIG_FIELDS
 
-const TOP_LEVEL_KEYS = ["pierre", "shiki"] as const
+const TOP_LEVEL_KEYS = ["pierre", "shiki", "view"] as const
 const PIERRE_KEYS = Object.keys(PIERRE_CONFIG_FIELDS)
 const SHIKI_KEYS = Object.keys(SHIKI_CONFIG_FIELDS)
+const VIEW_KEYS = Object.keys(VIEW_CONFIG_FIELDS)
 
 export type SuisekiConfig = typeof vSuisekiConfig.infer & {
   customThemes: CustomThemes
@@ -108,6 +121,7 @@ export type SuisekiConfigOverrides = typeof vSuisekiConfigOverrides.infer
 type DraftSuisekiConfigOverrides = {
   pierre?: Partial<Record<PierreKey, unknown>>
   shiki?: Partial<Record<ShikiKey, unknown>>
+  view?: Partial<Record<ViewKey, unknown>>
 }
 
 export const DEFAULT_CONFIG: SuisekiConfig = {
@@ -125,6 +139,9 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
     theme: "pierre-dark",
     "max-line-length": 10000,
     "max-file-lines": 10000,
+  },
+  view: {
+    "with-tree": false,
   },
   customThemes: {},
 }
@@ -172,6 +189,13 @@ export async function loadConfig({
       ...(repositoryConfiguration.shiki ?? {}),
       ...(environmentOverrides.shiki ?? {}),
       ...(overrides.shiki ?? {}),
+    },
+    view: {
+      ...DEFAULT_CONFIG.view,
+      ...(userConfiguration.view ?? {}),
+      ...(repositoryConfiguration.view ?? {}),
+      ...(environmentOverrides.view ?? {}),
+      ...(overrides.view ?? {}),
     },
   }
   const configurationSources = [
@@ -329,9 +353,15 @@ function environmentOverridesFrom(env: SuisekiEnv): SuisekiConfigOverrides {
     shiki["max-file-lines"] = env.SUISEKI_SHIKI_MAX_FILE_LINES
   }
 
+  const view: Partial<Record<ViewKey, unknown>> = {}
+  if (env.SUISEKI_VIEW_WITH_TREE !== undefined) {
+    view["with-tree"] = env.SUISEKI_VIEW_WITH_TREE
+  }
+
   const overrides: DraftSuisekiConfigOverrides = {}
   if (Object.keys(pierre).length > 0) overrides.pierre = pierre
   if (Object.keys(shiki).length > 0) overrides.shiki = shiki
+  if (Object.keys(view).length > 0) overrides.view = view
 
   return validateConfigOverrides(overrides, "environment")
 }
@@ -438,6 +468,15 @@ function assertKnownConfigKeys(
       `${configFilePath} [shiki]`,
     )
   }
+
+  if (value.view != null) {
+    assertPlainObject(value.view, `${configFilePath} [view]`)
+    assertKnownKeysInSet(
+      Object.keys(value.view),
+      VIEW_KEYS,
+      `${configFilePath} [view]`,
+    )
+  }
 }
 
 function assertKnownKeysInSet(
@@ -463,6 +502,7 @@ function getErrorMessage(error: unknown): string {
 function hasConfigOverrides(overrides: SuisekiConfigOverrides): boolean {
   return (
     Object.keys(overrides.pierre ?? {}).length > 0 ||
-    Object.keys(overrides.shiki ?? {}).length > 0
+    Object.keys(overrides.shiki ?? {}).length > 0 ||
+    Object.keys(overrides.view ?? {}).length > 0
   )
 }
