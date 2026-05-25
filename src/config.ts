@@ -22,6 +22,7 @@ const vSuisekiEnv = type({
   "SUISEKI_SHIKI_THEME?": "string",
   "SUISEKI_SHIKI_MAX_LINE_LENGTH?": vPositiveIntegerString,
   "SUISEKI_SHIKI_MAX_FILE_LINES?": vPositiveIntegerString,
+  "SUISEKI_VIEW_ALL?": vStringBoolean,
   "SUISEKI_VIEW_WITH_TREE?": vStringBoolean,
   "SUISEKI_VIEW_WITH_TREE_SIDE?": '"left" | "right"',
   "SUISEKI_NO_PAGER?": vStringBoolean,
@@ -63,10 +64,12 @@ const SHIKI_CONFIG_FIELDS = {
   "max-file-lines": vPositiveInteger,
 } as const
 
-// suiseki's own (non-Pierre, non-Shiki) view options. `with-tree` defaults the
-// `view`/`sat` file viewer to the side-by-side tree layout; `with-tree-side`
-// chooses which side the tree sits on.
+// suiseki's own (non-Pierre, non-Shiki) view options. `all` defaults the viewer
+// to show dotfiles and gitignored entries (the `--all`/`-a` behavior);
+// `with-tree` defaults to the side-by-side tree layout; `with-tree-side` chooses
+// which side the tree sits on.
 const VIEW_CONFIG_FIELDS = {
+  all: "boolean",
   "with-tree": "boolean",
   "with-tree-side": '"left" | "right"',
 } as const
@@ -144,6 +147,7 @@ export const DEFAULT_CONFIG: SuisekiConfig = {
     "max-file-lines": 10000,
   },
   view: {
+    all: true,
     "with-tree": true,
     "with-tree-side": "left",
   },
@@ -358,6 +362,9 @@ function environmentOverridesFrom(env: SuisekiEnv): SuisekiConfigOverrides {
   }
 
   const view: Partial<Record<ViewKey, unknown>> = {}
+  if (env.SUISEKI_VIEW_ALL !== undefined) {
+    view.all = env.SUISEKI_VIEW_ALL
+  }
   if (env.SUISEKI_VIEW_WITH_TREE !== undefined) {
     view["with-tree"] = env.SUISEKI_VIEW_WITH_TREE
   }

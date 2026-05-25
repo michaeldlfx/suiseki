@@ -187,6 +187,9 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
     overrides: parsedOptions.overrides,
     suisekiEnv,
   })
+  // `--all`/`-a` (or `--all=false`) override the `[view].all` default, which is
+  // on: dotfiles and gitignored entries are shown unless explicitly disabled.
+  const allEnabled = all ?? configuration.view.all
 
   // `view`/`sat` takes a single path (or none, for stdin/cwd). Reject extra
   // paths loudly rather than silently viewing only the first.
@@ -205,7 +208,7 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
 
   if (target === "tree") {
     await emitTree({
-      all,
+      all: allEnabled,
       configuration,
       gitStatus,
       icons,
@@ -236,7 +239,7 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
     getTerminalWidth() >= MIN_WIDTH_FOR_TREE
   ) {
     await emitFileWithTree({
-      all,
+      all: allEnabled,
       configuration,
       gitStatus,
       icons,
@@ -428,7 +431,9 @@ function isBinaryContent(bytes: Uint8Array): boolean {
 }
 
 type ViewFlags = {
-  all: boolean
+  // undefined when neither --all/-a nor --all=<bool> was given, so the config
+  // default ([view].all) decides.
+  all: boolean | undefined
   gitStatus: boolean
   icons: boolean
   rest: string[]
@@ -438,7 +443,7 @@ type ViewFlags = {
 }
 
 function extractViewFlags(viewArguments: string[]): ViewFlags {
-  let all = false
+  let all: boolean | undefined
   let gitStatus = true
   let icons = true
   let withTree: boolean | undefined
@@ -447,6 +452,8 @@ function extractViewFlags(viewArguments: string[]): ViewFlags {
   for (const argument of viewArguments) {
     if (argument === "--all" || argument === "-a") {
       all = true
+    } else if (argument.startsWith("--all=")) {
+      all = parseBooleanFlagValue("--all", argument.slice("--all=".length))
     } else if (argument === "--git-status") {
       gitStatus = true
     } else if (argument === "--no-git-status") {
@@ -651,7 +658,8 @@ function getViewHelpText(): string {
     "  --max-file-lines <number>",
     "",
     "Tree options (when the argument is a directory):",
-    "  --all, -a        Include dotfiles and gitignored entries",
+    "  --all, -a        Include dotfiles and gitignored entries (on by default;",
+    "                   --all=false to hide them for one run)",
     "  --no-icons       Hide directory glyphs (shown by default)",
     "  --no-git-status  Hide the git status column (on by default in a repo)",
     "",
