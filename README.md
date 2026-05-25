@@ -78,6 +78,7 @@ With `suiseki` installed, wire it up as your Git diff pager:
 ```bash
 git config --global pager.diff 'suiseki'
 git config --global pager.show 'suiseki'
+git config --global interactive.diffFilter 'suiseki --color-only'
 ```
 
 That's it. Run `git diff` and enjoy.
