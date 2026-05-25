@@ -8,6 +8,36 @@ import { buildTree, type GitStatusState, renderTreeLines } from "./tree"
 // back to the plain file view.
 export const MIN_WIDTH_FOR_TREE = 100
 const SEPARATOR = " │ "
+// Tab stop used to expand tabs in the sidebar's file column. 8 matches the
+// terminal/POSIX default, so an 8-column terminal renders identically.
+const TAB_WIDTH = 8
+
+// Expands tabs to spaces at fixed tab stops. The column math measures a literal
+// tab as one cell, but a terminal renders it as a jump to the next stop, which
+// would misalign the side-by-side columns for tab-indented files (Go, Makefiles,
+// many codebases). Sidebar-only: the plain/piped file view keeps tabs verbatim
+// so it stays a faithful, cat-like filter.
+export function expandTabs(text: string, tabWidth: number): string {
+  if (!text.includes("\t")) {
+    return text
+  }
+  let result = ""
+  let column = 0
+  for (const character of text) {
+    if (character === "\t") {
+      const spaces = tabWidth - (column % tabWidth)
+      result += " ".repeat(spaces)
+      column += spaces
+    } else if (character === "\n") {
+      result += character
+      column = 0
+    } else {
+      result += character
+      column += 1
+    }
+  }
+  return result
+}
 
 type TreeLayout = { fileColumnWidth: number; treeColumnWidth: number }
 
@@ -62,7 +92,7 @@ export async function renderWithTreeLines({
   const context = await prepareRenderContext(configuration)
   const { contentLines } = await buildFileView({
     configuration,
-    content,
+    content: expandTabs(content, TAB_WIDTH),
     context,
     fileName,
   })
