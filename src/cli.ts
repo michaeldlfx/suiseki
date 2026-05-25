@@ -169,8 +169,15 @@ type ViewInput =
 // polymorphic: a file path shows content, a directory path shows its tree, and
 // stdin is read when piped or for "-".
 async function runViewCommand(viewArguments: string[]): Promise<void> {
-  const { gitignored, gitStatus, icons, rest, showHidden, withTree } =
-    extractViewFlags(viewArguments)
+  const {
+    gitignored,
+    gitStatus,
+    icons,
+    rest,
+    showHidden,
+    withTree,
+    withTreeSide,
+  } = extractViewFlags(viewArguments)
   const parsedOptions = parseCliOptions(rest)
   if (parsedOptions.version) {
     process.stdout.write(`suiseki ${version}\n`)
@@ -192,6 +199,7 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
   // the `[view]` config defaults decide.
   const resolvedGitignored = gitignored ?? configuration.view.gitignored
   const resolvedShowHidden = showHidden ?? configuration.view.hidden
+  const resolvedTreeSide = withTreeSide ?? configuration.view["with-tree-side"]
 
   // `view`/`sat` takes a single path (or none, for stdin/cwd). Reject extra
   // paths loudly rather than silently viewing only the first.
@@ -250,6 +258,7 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
       noColor,
       noPager,
       showHidden: resolvedShowHidden,
+      treeSide: resolvedTreeSide,
     })
     return
   }
@@ -266,6 +275,7 @@ type EmitFileWithTreeParams = {
   noColor: boolean
   noPager: boolean
   showHidden: boolean
+  treeSide: "left" | "right"
 }
 
 async function emitFileWithTree({
@@ -277,6 +287,7 @@ async function emitFileWithTree({
   noColor,
   noPager,
   showHidden,
+  treeSide,
 }: EmitFileWithTreeParams): Promise<void> {
   // Root the sidebar at the project (repo root, or cwd outside a repo) and
   // reveal just the path to the file: expand its ancestor directories, collapse
@@ -327,7 +338,7 @@ async function emitFileWithTree({
     paths,
     rootLabel,
     showIcons: icons,
-    side: configuration.view["with-tree-side"],
+    side: treeSide,
   })
 
   await emitLines({ lines, noColor, noPager })
@@ -451,6 +462,9 @@ type ViewFlags = {
   // undefined when neither --with-tree nor --with-tree=<bool> was given, so the
   // config default ([view].with-tree) decides.
   withTree: boolean | undefined
+  // undefined when --with-tree-side=<side> was not given, so the config default
+  // ([view].with-tree-side) decides.
+  withTreeSide: "left" | "right" | undefined
 }
 
 function extractViewFlags(viewArguments: string[]): ViewFlags {
@@ -459,6 +473,7 @@ function extractViewFlags(viewArguments: string[]): ViewFlags {
   let icons = true
   let showHidden: boolean | undefined
   let withTree: boolean | undefined
+  let withTreeSide: "left" | "right" | undefined
   const rest: string[] = []
 
   for (const argument of viewArguments) {
@@ -478,6 +493,8 @@ function extractViewFlags(viewArguments: string[]): ViewFlags {
       icons = false
     } else if (argument === "--with-tree" || argument === "-t") {
       withTree = true
+    } else if (argument.startsWith("--with-tree-side=")) {
+      withTreeSide = parseTreeSide(argument.slice("--with-tree-side=".length))
     } else if (argument.startsWith("--with-tree=")) {
       withTree = parseBooleanFlagValue(
         "--with-tree",
@@ -488,7 +505,15 @@ function extractViewFlags(viewArguments: string[]): ViewFlags {
     }
   }
 
-  return { gitignored, gitStatus, icons, rest, showHidden, withTree }
+  return {
+    gitignored,
+    gitStatus,
+    icons,
+    rest,
+    showHidden,
+    withTree,
+    withTreeSide,
+  }
 }
 
 function parseBooleanFlagValue(flag: string, rawValue: string): boolean {
@@ -510,6 +535,13 @@ function parseGitignoredMode(rawValue: string): GitignoredMode {
     return rawValue
   }
   throw new CliError("--gitignored must be hidden, collapsed, or expanded")
+}
+
+function parseTreeSide(rawValue: string): "left" | "right" {
+  if (rawValue === "left" || rawValue === "right") {
+    return rawValue
+  }
+  throw new CliError("--with-tree-side must be left or right")
 }
 
 type EmitTreeParams = {
@@ -688,6 +720,7 @@ function getViewHelpText(): string {
     "File options:",
     "  --with-tree, -t  Show the file beside its directory tree",
     "                   (--with-tree=false to override a config default)",
+    "  --with-tree-side=<left|right>   Which side the tree sits on",
     "  --line-numbers / --no-line-numbers",
     "  --file-header / --no-file-header",
     "  --max-line-length <number>",
