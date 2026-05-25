@@ -172,8 +172,9 @@ parent directories. The tree and viewer flags:
 - `--with-tree` / `-t`: show a file beside its directory tree. This is **on by
   default** (`[view].with-tree`); turn it off for one run with
   `--with-tree=false`, or set `[view].with-tree = false` to default to a plain
-  file view. The sidebar falls back to a plain view below 100 columns and for
-  stdin. The tree sits on the left by default; set
+  file view. The sidebar only renders on an interactive terminal: piped or
+  redirected output, terminals below 100 columns, and stdin input all fall back
+  to a clean full-width file view. The tree sits on the left by default; set
   `[view].with-tree-side = "right"` to flip it.
 
 File viewing reuses the diff renderer's machinery: themes, line numbers, the
