@@ -144,22 +144,22 @@ its contents) or a directory (print its tree).
 <!-- TODO(screenshot): `sat src/render/diff.ts` (highlighting + line numbers), and `sat .` (tree with the git-status column). -->
 
 ```bash
-# syntax-highlight a file
+# view a file: by default (on a wide terminal) it is shown beside its directory
+# tree, highlighted and revealed in the tree
 sat src/render/diff.ts
 suiseki view src/render/diff.ts
+
+# turn the tree off for a plain file view
+sat --with-tree=false src/render/diff.ts
 
 # print a directory tree with git status
 sat .
 sat src/
 suiseki view src/
 
-# read a file from stdin
+# read a file from stdin (plain, no tree)
 cat src/cli.ts | sat
 sat - < src/cli.ts
-
-# show a file beside its directory tree, the file revealed and highlighted
-sat --with-tree src/render/file.ts
-sat -t src/render/file.ts
 ```
 
 A directory argument prints a tree. Entries come from `git ls-files` inside a
@@ -171,10 +171,11 @@ parent directories. The tree and viewer flags:
 - `--all` / `-a`: include dotfiles and gitignored entries.
 - `--no-icons`: hide the `▾` directory glyphs.
 - `--no-git-status`: hide the git-status column.
-- `--with-tree` / `-t`: when viewing a file, show it beside its directory tree
-  (falls back to the plain view below 100 columns, or for stdin). Set
-  `[view].with-tree = true` to make this the default, and override per run with
-  `--with-tree=false`. The tree sits on the left by default; set
+- `--with-tree` / `-t`: show a file beside its directory tree. This is **on by
+  default** (`[view].with-tree`); turn it off for one run with
+  `--with-tree=false`, or set `[view].with-tree = false` to default to a plain
+  file view. The sidebar falls back to a plain view below 100 columns and for
+  stdin. The tree sits on the left by default; set
   `[view].with-tree-side = "right"` to flip it.
 
 File viewing reuses the diff renderer's machinery: themes, line numbers, the
@@ -229,7 +230,7 @@ max-line-length = 10000      # SUISEKI_SHIKI_MAX_LINE_LENGTH
 max-file-lines = 10000       # SUISEKI_SHIKI_MAX_FILE_LINES
 
 [view]
-with-tree = false            # SUISEKI_VIEW_WITH_TREE (sat/view: show the directory tree beside the file)
+with-tree = true             # SUISEKI_VIEW_WITH_TREE (sat/view: show the directory tree beside the file)
 with-tree-side = "left"      # SUISEKI_VIEW_WITH_TREE_SIDE (which side the tree sits on: left | right)
 ```
 
