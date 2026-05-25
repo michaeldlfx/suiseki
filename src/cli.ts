@@ -214,12 +214,15 @@ async function runViewCommand(viewArguments: string[]): Promise<void> {
   }
 
   // `--with-tree` (or `[view].with-tree`) shows the file beside its directory
-  // tree. It needs a real file path to locate and highlight, and enough width;
-  // otherwise fall back to the plain file view.
+  // tree. It needs a real file path to locate and highlight, an interactive
+  // terminal, and enough width. When stdout is piped or redirected we stay a
+  // clean full-width file view: the sidebar truncates lines to columns, which
+  // would mangle output for any downstream consumer (the Unix-filter contract).
   const withTreeEnabled = withTree ?? configuration.view["with-tree"]
   if (
     withTreeEnabled &&
     input.fileName !== "" &&
+    process.stdout.isTTY === true &&
     getTerminalWidth() >= MIN_WIDTH_FOR_TREE
   ) {
     await emitFileWithTree({
