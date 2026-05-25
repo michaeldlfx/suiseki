@@ -10,11 +10,4 @@ coverageSkipTestFiles = true
 coverageThreshold = { lines = 0.8, functions = 0.8, statements = 0.8 }
 # upgrade-io.ts is the network/filesystem adapter for `suiseki upgrade`; its
 # logic is covered through the ReleaseClient port in upgrade-command.test.ts.
-# tree-source.ts is the git/filesystem adapter for the tree: it is exercised by
-# the compiled-binary CLI integration tests (a subprocess's execution can't count
-# toward in-process coverage) plus focused unit tests for collectRevealPaths.
-coveragePathIgnorePatterns = [
-  "src/vendor/**",
-  "src/upgrade-io.ts",
-  "src/tree-source.ts",
-]
+coveragePathIgnorePatterns = ["src/vendor/**", "src/upgrade-io.ts"]
