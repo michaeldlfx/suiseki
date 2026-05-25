@@ -96,6 +96,10 @@ The project is a friendly terminal surface for Pierre's renderer-agnostic packag
 # pipe a diff
 git diff | suiseki
 
+# review a whole branch or a PR
+suiseki origin/main...HEAD              # your branch's changes vs main (fetch origin/main first)
+gh pr diff 42 | suiseki                 # a GitHub PR's diff, via the gh CLI (gh pr diff for the current branch's PR)
+
 # pass git diff arguments directly
 suiseki HEAD~1 HEAD
 suiseki --staged
