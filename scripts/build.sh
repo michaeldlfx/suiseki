@@ -17,11 +17,17 @@ VERSION_LITERAL="$(bun pm pkg get version)"
 
 set -- src/cli.ts --compile --outfile "$OUTFILE"
 
-# Stamp the version only when package.json declares one. Local/dev builds have no
-# version field (it is added by CI on release), so leave it unstamped and let
-# version.ts report "dev". Released binaries build from a tagged commit that has
-# the version, so they stamp correctly.
+# Stamp the version only when package.json declares one (with no version field it
+# prints "{}"; leave it unstamped and let version.ts report "dev"). Dev builds get
+# a "+dev" build-metadata suffix so a local binary is distinguishable from a
+# release: it is semver-additive, so 0.1.1+dev sorts equal to 0.1.1 rather than
+# claiming to be an earlier prerelease. The release pipeline sets SUISEKI_RELEASE
+# to stamp the bare version (see build-release.sh).
 if [ "$VERSION_LITERAL" != "{}" ]; then
+  if [ -z "${SUISEKI_RELEASE:-}" ]; then
+    # Insert the suffix inside the JSON quotes: "0.1.1" -> "0.1.1+dev".
+    VERSION_LITERAL="${VERSION_LITERAL%\"}+dev\""
+  fi
   set -- "$@" --define "SUISEKI_VERSION=$VERSION_LITERAL"
 fi
 

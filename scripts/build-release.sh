@@ -28,7 +28,8 @@ for entry in $TARGETS; do
   target="${entry%%:*}"
   outname="${entry##*:}"
   printf '  %-26s -> %s\n' "$target" "$DIST_DIR/$outname"
-  scripts/build.sh "$DIST_DIR/$outname" "$target"
+  # Release builds stamp the bare version; build.sh adds a +dev suffix otherwise.
+  SUISEKI_RELEASE=1 scripts/build.sh "$DIST_DIR/$outname" "$target"
 done
 
 echo "Generating checksums..."
