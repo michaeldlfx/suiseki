@@ -10,8 +10,9 @@ name: smoke binaries
 # platform-sensitive change:
 #   gh workflow run smoke-binaries --repo michaeldlfx/suiseki
 #
-# windows-arm64 is built but not smoke-tested: GitHub has no hosted arm64 Windows
-# runner.
+# Not smoke-tested but still built and shipped: darwin-x64 (the hosted Intel
+# macOS runner is retired) and windows-arm64 (no hosted arm64 Windows runner).
+# musl is not supported.
 on:
   workflow_dispatch:
 
@@ -56,23 +57,12 @@ jobs:
           - name: darwin-arm64
             runner: macos-14
             asset: suiseki-darwin-arm64
-          - name: darwin-x64
-            runner: macos-13
-            asset: suiseki-darwin-x64
           - name: linux-x64
             runner: ubuntu-latest
             asset: suiseki-linux-x64
           - name: linux-arm64
             runner: ubuntu-24.04-arm
             asset: suiseki-linux-arm64
-          - name: linux-x64-musl
-            runner: ubuntu-latest
-            asset: suiseki-linux-x64-musl
-            container: alpine:3
-          - name: linux-arm64-musl
-            runner: ubuntu-24.04-arm
-            asset: suiseki-linux-arm64-musl
-            container: alpine:3
           - name: windows-x64
             runner: windows-latest
             asset: suiseki-windows-x64.exe
@@ -86,29 +76,18 @@ jobs:
         shell: bash
         env:
           ASSET: ${{ matrix.asset }}
-          CONTAINER: ${{ matrix.container }}
         run: |
           set -euo pipefail
           chmod +x "$ASSET" || true
 
-          # Run the binary natively, or inside a musl container when set. -i so
-          # the diff fixture can be piped to stdin in both cases.
-          run() {
-            if [ -n "${CONTAINER:-}" ]; then
-              docker run --rm -i -v "$PWD:/w" -w /w "$CONTAINER" "./$ASSET" "$@"
-            else
-              "./$ASSET" "$@"
-            fi
-          }
-
           echo "--- --version ---"
-          run --version | grep -q '^suiseki '
+          "./$ASSET" --version | grep -q '^suiseki '
 
           echo "--- --help ---"
-          run --help | grep -q 'Usage:'
+          "./$ASSET" --help | grep -q 'Usage:'
 
           echo "--- stdin diff ---"
           printf 'diff --git a/x b/x\nindex 0000000..1111111 100644\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n' \
-            | run --no-pager --no-color | grep -q 'new'
+            | "./$ASSET" --no-pager --no-color | grep -q 'new'
 
           echo "ok: $ASSET"
