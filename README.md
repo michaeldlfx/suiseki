@@ -30,8 +30,7 @@ state as `make init`). The install directory is user-writable, so no `sudo` is
 needed. Override it with `SUISEKI_INSTALL_DIR`, or pin a version with
 `SUISEKI_VERSION=0.1.0`.
 
-macOS (x64 and arm64) and Linux (x64 and arm64, glibc) are supported. On
-Windows, download `suiseki-windows-x64.exe` from the [releases page](https://github.com/michaeldlfx/suiseki/releases).
+macOS (x64 and arm64) and Linux (x64 and arm64, glibc) are supported.
 
 ### Install with Homebrew
 
