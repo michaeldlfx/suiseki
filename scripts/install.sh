@@ -52,7 +52,7 @@ detect_asset() {
   case "$os" in
     Darwin) os_part="darwin" ;;
     Linux) os_part="linux" ;;
-    *) error "unsupported OS: $os (download the Windows .exe from the releases page)" ;;
+    *) error "unsupported OS: $os" ;;
   esac
 
   case "$arch" in

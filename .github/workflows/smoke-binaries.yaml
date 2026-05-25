@@ -11,8 +11,7 @@ name: smoke binaries
 #   gh workflow run smoke-binaries --repo michaeldlfx/suiseki
 #
 # Not smoke-tested but still built and shipped: darwin-x64 (the hosted Intel
-# macOS runner is retired) and windows-arm64 (no hosted arm64 Windows runner).
-# musl is not supported.
+# macOS runner is retired). musl and Windows are not supported.
 on:
   workflow_dispatch:
 
@@ -63,9 +62,6 @@ jobs:
           - name: linux-arm64
             runner: ubuntu-24.04-arm
             asset: suiseki-linux-arm64
-          - name: windows-x64
-            runner: windows-latest
-            asset: suiseki-windows-x64.exe
     steps:
       - name: download binaries
         uses: actions/download-artifact@v4
