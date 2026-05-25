@@ -3,7 +3,7 @@ set -e
 
 # Cross-compile every release target into dist/ and write a checksums file.
 # Bun compiles all targets from a single machine, so this runs locally and in CI
-# alike (see .github/workflows/release.yaml).
+# alike (see .github/workflows/main-branch-workflow.yaml).
 
 DIST_DIR="dist"
 
