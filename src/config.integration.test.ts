@@ -95,7 +95,7 @@ describe("config.ts", () => {
           "max-file-lines": 10000,
         },
         view: {
-          "with-tree": false,
+          "with-tree": true,
           "with-tree-side": "left",
         },
         customThemes: {},

@@ -172,6 +172,7 @@ describe("view subcommand", () => {
   test("highlights a file with a header naming the language", async () => {
     const { exitCode, stdout } = await runCli([
       "view",
+      "--with-tree=false",
       join(workspace, "greeting.ts"),
     ])
     const plain = stripAnsi(stdout)
@@ -232,7 +233,10 @@ describe("view subcommand", () => {
 
 describe("sat symlink dispatch", () => {
   test("views a file when invoked as `sat <file>`", async () => {
-    const { exitCode, stdout } = await runSat(["greeting.ts"], {})
+    const { exitCode, stdout } = await runSat(
+      ["--with-tree=false", "greeting.ts"],
+      {},
+    )
     const plain = stripAnsi(stdout)
 
     expect(exitCode).toEqual(0)
@@ -284,26 +288,27 @@ describe("view --with-tree", () => {
     expect(plain).toContain("data.bin")
   })
 
-  test("a plain view does not include the surrounding tree", async () => {
+  test("shows the sidebar by default", async () => {
     const { stdout } = await runViewInWorkspace(["greeting.ts"])
+
+    expect(stripAnsi(stdout)).toContain("const greeting")
+    expect(stripAnsi(stdout)).toContain("data.bin")
+  })
+
+  test("SUISEKI_VIEW_WITH_TREE=false turns the sidebar off", async () => {
+    const { stdout } = await runViewInWorkspace(["greeting.ts"], {
+      SUISEKI_VIEW_WITH_TREE: "false",
+    })
 
     expect(stripAnsi(stdout)).toContain("const greeting")
     expect(stripAnsi(stdout)).not.toContain("data.bin")
   })
 
-  test("SUISEKI_VIEW_WITH_TREE defaults the sidebar on", async () => {
-    const { stdout } = await runViewInWorkspace(["greeting.ts"], {
-      SUISEKI_VIEW_WITH_TREE: "true",
-    })
-
-    expect(stripAnsi(stdout)).toContain("data.bin")
-  })
-
-  test("--with-tree=false overrides a config default back off", async () => {
-    const { stdout } = await runViewInWorkspace(
-      ["greeting.ts", "--with-tree=false"],
-      { SUISEKI_VIEW_WITH_TREE: "true" },
-    )
+  test("--with-tree=false turns the sidebar off", async () => {
+    const { stdout } = await runViewInWorkspace([
+      "greeting.ts",
+      "--with-tree=false",
+    ])
 
     expect(stripAnsi(stdout)).not.toContain("data.bin")
   })
