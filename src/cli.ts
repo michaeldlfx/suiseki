@@ -1,9 +1,18 @@
 import { stat } from "node:fs/promises"
 import { basename, dirname, relative, resolve } from "node:path"
 import { createInterface } from "node:readline"
+import { type } from "arktype"
 import { stripAnsi } from "./ansi"
 import { parseCliOptions } from "./cli-options"
-import { loadConfig, readSuisekiEnv, type SuisekiConfig } from "./config"
+import { vStringBoolean } from "./common/validators"
+import {
+  type GitignoredMode,
+  loadConfig,
+  readSuisekiEnv,
+  type SuisekiConfig,
+  vGitignoredMode,
+  vTreeSide,
+} from "./config"
 import { runConfigCommand } from "./config-command"
 import { getDefaultConfigPath, runInitCommandWithIO } from "./init-command"
 import { renderDiff, streamDiffBlocks } from "./render/diff"
@@ -19,7 +28,6 @@ import { runThemesCommand } from "./themes-command"
 import {
   collectRevealPaths,
   collectTreePaths,
-  type GitignoredMode,
   loadGitStatus,
   type RepoContext,
   resolveRepoContext,
@@ -516,32 +524,31 @@ function extractViewFlags(viewArguments: string[]): ViewFlags {
   }
 }
 
+// Flag values are validated against the same Arktype schemas the config and env
+// use, so the valid sets live in one place. We surface a friendly CLI message
+// rather than Arktype's default on failure.
 function parseBooleanFlagValue(flag: string, rawValue: string): boolean {
-  if (rawValue === "true") {
-    return true
+  const result = vStringBoolean(rawValue)
+  if (result instanceof type.errors) {
+    throw new CliError(`${flag} must be true or false`)
   }
-  if (rawValue === "false") {
-    return false
-  }
-  throw new CliError(`${flag} must be true or false`)
+  return result
 }
 
 function parseGitignoredMode(rawValue: string): GitignoredMode {
-  if (
-    rawValue === "hidden" ||
-    rawValue === "collapsed" ||
-    rawValue === "expanded"
-  ) {
-    return rawValue
+  const result = vGitignoredMode(rawValue)
+  if (result instanceof type.errors) {
+    throw new CliError("--gitignored must be hidden, collapsed, or expanded")
   }
-  throw new CliError("--gitignored must be hidden, collapsed, or expanded")
+  return result
 }
 
 function parseTreeSide(rawValue: string): "left" | "right" {
-  if (rawValue === "left" || rawValue === "right") {
-    return rawValue
+  const result = vTreeSide(rawValue)
+  if (result instanceof type.errors) {
+    throw new CliError("--with-tree-side must be left or right")
   }
-  throw new CliError("--with-tree-side must be left or right")
+  return result
 }
 
 type EmitTreeParams = {

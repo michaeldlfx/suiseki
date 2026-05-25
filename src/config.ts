@@ -10,6 +10,12 @@ import { isPierreThemeName } from "./pierre-themes"
 const vPositiveInteger = type("number.integer > 0")
 const vPositiveIntegerString = type("string.numeric.parse").to(vPositiveInteger)
 
+// Shared enums for the `[view]` options, reused by the config schema, the env
+// schema, and CLI flag validation so the valid values live in one place.
+export const vGitignoredMode = type('"hidden" | "collapsed" | "expanded"')
+export type GitignoredMode = typeof vGitignoredMode.infer
+export const vTreeSide = type('"left" | "right"')
+
 const vSuisekiEnv = type({
   "SUISEKI_PIERRE_VIEW?": '"unified" | "split"',
   "SUISEKI_PIERRE_LINE_NUMBERS?": vStringBoolean,
@@ -22,10 +28,10 @@ const vSuisekiEnv = type({
   "SUISEKI_SHIKI_THEME?": "string",
   "SUISEKI_SHIKI_MAX_LINE_LENGTH?": vPositiveIntegerString,
   "SUISEKI_SHIKI_MAX_FILE_LINES?": vPositiveIntegerString,
-  "SUISEKI_VIEW_GITIGNORED?": '"hidden" | "collapsed" | "expanded"',
+  "SUISEKI_VIEW_GITIGNORED?": vGitignoredMode,
   "SUISEKI_VIEW_HIDDEN?": vStringBoolean,
   "SUISEKI_VIEW_WITH_TREE?": vStringBoolean,
-  "SUISEKI_VIEW_WITH_TREE_SIDE?": '"left" | "right"',
+  "SUISEKI_VIEW_WITH_TREE_SIDE?": vTreeSide,
   "SUISEKI_NO_PAGER?": vStringBoolean,
 })
 
@@ -70,10 +76,10 @@ const SHIKI_CONFIG_FIELDS = {
 // or fully expanded); `hidden` shows dotfiles; `with-tree` defaults to the
 // side-by-side tree layout; `with-tree-side` chooses which side the tree sits on.
 const VIEW_CONFIG_FIELDS = {
-  gitignored: '"hidden" | "collapsed" | "expanded"',
+  gitignored: vGitignoredMode,
   hidden: "boolean",
   "with-tree": "boolean",
-  "with-tree-side": '"left" | "right"',
+  "with-tree-side": vTreeSide,
 } as const
 
 const CLI_PIERRE_CONFIG_FIELDS = {

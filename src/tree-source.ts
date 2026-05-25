@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises"
 import { join, relative, resolve } from "node:path"
+import type { GitignoredMode } from "./config"
 import type { GitFileStatus, GitStatusState } from "./render/tree"
 import { getAncestorDirectoryPaths } from "./vendor/pierre/path-helpers"
 
@@ -71,9 +72,6 @@ export async function resolveRepoContext(
     relativeToRoot === "" ? "" : `${relativeToRoot.replaceAll("\\", "/")}/`
   return { repoRoot, subPrefix }
 }
-
-// How gitignored entries appear in the tree.
-export type GitignoredMode = "hidden" | "collapsed" | "expanded"
 
 export type CollectedTree = {
   paths: string[]
