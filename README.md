@@ -40,6 +40,13 @@ macOS (x64 and arm64) and Linux (x64 and arm64, glibc) are supported.
 brew install michaeldlfx/suiseki/suiseki
 ```
 
+For Homebrew, initialize your config file after your first install
+(recommended); the other install methods set it up automatically:
+
+```bash
+suiseki config --init
+```
+
 ### Install from source
 
 `suiseki` runs on [Bun](https://bun.sh/). If you don't have it yet, install it first:
