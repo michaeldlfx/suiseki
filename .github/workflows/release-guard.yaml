@@ -55,7 +55,7 @@ jobs:
           echo "Found exactly one semver label."
 
       - name: checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: documentation PRs must not change code
         if: env.HAS_DOCS == 'true'
